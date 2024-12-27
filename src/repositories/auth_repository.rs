@@ -72,9 +72,15 @@ impl AuthRepository {
     pub fn validate_csrf(&self, session_id: &str, csrf_token: &str) -> Result<(), AuthError> {
         use crate::schema::public::temp_sessions;
         let mut conn = db::config::establish_connection();
-
         let now = chrono::Utc::now().naive_utc();
+
+        // Delete expired sessions first
+        diesel::delete(temp_sessions::table)
+            .filter(temp_sessions::expires_at.lt(now))
+            .execute(&mut conn)
+            .map_err(AuthError::from)?;
         
+        // Then validate the current session
         temp_sessions::table
             .filter(temp_sessions::dsl::session_id.eq(session_id))
             .filter(temp_sessions::dsl::expires_at.gt(now))
