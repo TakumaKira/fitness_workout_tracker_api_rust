@@ -7,3 +7,7 @@ To run, you can simply run `cargo run` in the terminal, but I recommend using `c
 ## Database
 
 The database is a SQLite database that is created in the `src/db/config.rs` file by default. You can change the database URL in the `.env` file by setting the `DATABASE_URL` variable.
+
+## Environment Variables
+
+The `PORT` variable is used to set the port that the server will run on. You can change the port in the `.env` file by setting the `PORT` variable.
