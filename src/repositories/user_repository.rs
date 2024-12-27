@@ -32,25 +32,28 @@ impl UserRepository {
 
     pub fn create_user(&self, email: String, password: String) -> Result<User, UserError> {
         use crate::schema::public::users;
-
-        let salt = SaltString::generate(&mut OsRng);
-        let argon2 = Argon2::default();
-        let password_hash = argon2
-            .hash_password(password.as_bytes(), &salt)
-            .unwrap()
-            .to_string();
-
-        let new_user = User::new(email, password_hash);
         let mut conn = db::config::establish_connection();
 
-        diesel::insert_into(users::table)
-            .values(&new_user)
-            .execute(&mut conn)
-            .map_err(UserError::from)?;
+        // Wrap everything in a transaction
+        conn.transaction(|conn| {
+            let salt = SaltString::generate(&mut OsRng);
+            let argon2 = Argon2::default();
+            let password_hash = argon2
+                .hash_password(password.as_bytes(), &salt)
+                .unwrap()
+                .to_string();
 
-        users::table
-            .filter(users::uuid.eq(new_user.uuid))
-            .first(&mut conn)
-            .map_err(UserError::from)
+            let new_user = User::new(email, password_hash);
+
+            diesel::insert_into(users::table)
+                .values(&new_user)
+                .execute(conn)
+                .map_err(UserError::from)?;
+
+            users::table
+                .filter(users::uuid.eq(new_user.uuid))
+                .first(conn)
+                .map_err(UserError::from)
+        })
     }
 } 
