@@ -1,6 +1,7 @@
 use actix_web::{web, post, HttpResponse, Responder, Scope};
 use serde::{Deserialize, Serialize};
 use crate::repositories::user_repository::UserRepository;
+use crate::repositories::user_repository::UserError;
 
 #[derive(Deserialize)]
 pub struct CreateUserRequest {
@@ -37,6 +38,11 @@ async fn create_user(
                 ),
             };
             HttpResponse::Created().json(response)
+        },
+        Err(UserError::DuplicateEmail) => {
+            HttpResponse::Conflict().json(serde_json::json!({
+                "error": "Email already exists"
+            }))
         },
         Err(_) => HttpResponse::InternalServerError().finish()
     }

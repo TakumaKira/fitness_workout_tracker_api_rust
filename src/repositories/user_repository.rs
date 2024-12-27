@@ -5,6 +5,24 @@ use argon2::{
     Argon2, PasswordHasher,
 };
 
+#[derive(Debug)]
+pub enum UserError {
+    DuplicateEmail,
+    DatabaseError(diesel::result::Error),
+}
+
+impl From<diesel::result::Error> for UserError {
+    fn from(err: diesel::result::Error) -> UserError {
+        match err {
+            diesel::result::Error::DatabaseError(
+                diesel::result::DatabaseErrorKind::UniqueViolation,
+                _,
+            ) => UserError::DuplicateEmail,
+            _ => UserError::DatabaseError(err),
+        }
+    }
+}
+
 pub struct UserRepository;
 
 impl UserRepository {
@@ -12,7 +30,7 @@ impl UserRepository {
         Self {}
     }
 
-    pub fn create_user(&self, email: String, password: String) -> QueryResult<User> {
+    pub fn create_user(&self, email: String, password: String) -> Result<User, UserError> {
         use crate::schema::public::users;
 
         let salt = SaltString::generate(&mut OsRng);
@@ -23,19 +41,16 @@ impl UserRepository {
             .to_string();
 
         let new_user = User::new(email, password_hash);
-
         let mut conn = db::config::establish_connection();
 
         diesel::insert_into(users::table)
             .values(&new_user)
             .execute(&mut conn)
-            .expect("Error creating user");
+            .map_err(UserError::from)?;
 
-        let user = users::table
+        users::table
             .filter(users::uuid.eq(new_user.uuid))
             .first(&mut conn)
-            .unwrap();
-
-        Ok(user)
+            .map_err(UserError::from)
     }
 } 
