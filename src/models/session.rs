@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 
-#[derive(Queryable, Selectable, Insertable)]
+#[derive(Queryable, Selectable)]
 #[diesel(table_name = crate::schema::public::sessions)]
 pub struct Session {
     pub id: i64,
@@ -12,11 +12,20 @@ pub struct Session {
     pub created_at: NaiveDateTime,
 }
 
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::public::sessions)]
+pub struct NewSession {
+    pub user_id: i64,
+    pub token: String,
+    pub csrf_token: String,
+    pub expires_at: NaiveDateTime,
+    pub created_at: NaiveDateTime,
+}
+
 impl Session {
-    pub fn new(user_id: i64, csrf_token: String) -> Self {
+    pub fn new(user_id: i64, csrf_token: String) -> NewSession {
         let now = chrono::Utc::now().naive_utc();
-        Self {
-            id: 0, // Will be set by trigger
+        NewSession {
             user_id,
             token: uuid::Uuid::new_v4().to_string(),
             csrf_token,

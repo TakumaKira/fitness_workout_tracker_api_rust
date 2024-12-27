@@ -1,5 +1,5 @@
 use actix_web::{App, HttpServer};
-use fitness_workout_tracker_api_rust::routes;
+use fitness_workout_tracker_api_rust::{routes, middleware::csrf::CsrfProtection};
 use std::env;
 
 #[actix_web::main]
@@ -11,6 +11,7 @@ async fn main() -> std::io::Result<()> {
     
     HttpServer::new(move || {
         App::new()
+            .wrap(CsrfProtection)
             .service(routes::auth::get_scope())
             .service(routes::users::get_scope())
             .service(routes::general::get_scope())

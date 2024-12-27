@@ -53,30 +53,15 @@ async fn login(
     req: HttpRequest,
 ) -> impl Responder {
     let repo = UserRepository::new();
-
-    // Validate session_id and CSRF token pair
-    let session_id = match req.cookie("session_id") {
-        Some(cookie) => cookie.value().to_string(),
-        None => return HttpResponse::Unauthorized().json(serde_json::json!({
-            "error": "Missing session cookie"
-        }))
-    };
-
-    let csrf_token = match req.headers().get("x-csrf-token") {
-        Some(header) => header.to_str().unwrap_or_default().to_string(),
-        None => return HttpResponse::Unauthorized().json(serde_json::json!({
-            "error": "Missing CSRF token"
-        }))
-    };
-
-    if let Err(_) = repo.validate_csrf(&session_id, &csrf_token) {
-        return HttpResponse::Unauthorized().json(serde_json::json!({
-            "error": "Invalid CSRF token"
-        }));
-    }
-
+    
     match repo.verify_credentials(user_data.email.clone(), user_data.password.clone()) {
         Ok(user) => {
+            let csrf_token = req.headers()
+                .get("x-csrf-token")
+                .and_then(|h| h.to_str().ok())
+                .unwrap()
+                .to_string();
+
             let session = repo.create_session(user.id, csrf_token).unwrap();
             
             let response = LoginResponse {

@@ -84,30 +84,36 @@ impl UserRepository {
         use crate::schema::public::sessions;
         let mut conn = db::config::establish_connection();
 
-        let session = Session::new(user_id, csrf_token);
+        let new_session = Session::new(user_id, csrf_token);
+        let token = new_session.token.clone(); // Clone token before insert
+
         diesel::insert_into(sessions::table)
-            .values(&session)
+            .values(&new_session)
             .execute(&mut conn)
             .map_err(UserError::from)?;
 
-        Ok(session)
+        sessions::table
+            .filter(sessions::token.eq(token))
+            .first(&mut conn)
+            .map_err(UserError::from)
     }
 
     pub fn create_temp_session(&self, csrf_token: String) -> Result<TempSession, UserError> {
         use crate::schema::public::temp_sessions;
         let mut conn = db::config::establish_connection();
 
-        let session = TempSession::new(
-            uuid::Uuid::new_v4().to_string(),
-            csrf_token,
-        );
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let new_temp_session = TempSession::new(session_id.clone(), csrf_token);
 
         diesel::insert_into(temp_sessions::table)
-            .values(&session)
+            .values(&new_temp_session)
             .execute(&mut conn)
             .map_err(UserError::from)?;
 
-        Ok(session)
+        temp_sessions::table
+            .filter(temp_sessions::session_id.eq(session_id))
+            .first(&mut conn)
+            .map_err(UserError::from)
     }
 
     pub fn validate_csrf(&self, session_id: &str, csrf_token: &str) -> Result<(), UserError> {
