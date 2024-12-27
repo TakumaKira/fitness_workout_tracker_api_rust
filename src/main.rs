@@ -11,14 +11,11 @@ async fn main() -> std::io::Result<()> {
 
     println!("Server starting at http://{}", address);
     
-    // Initialize database pool
-    let pool = db::config::create_pool()
-        .await
-        .expect("Failed to create database pool");
+    let conn = db::config::create_connection();
 
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(pool.clone()))
+            .app_data(web::Data::new(conn.clone()))
             .configure(routes::general::configure)
     })
     .bind(&address)?
