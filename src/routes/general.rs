@@ -6,15 +6,24 @@ pub struct Message {
     content: String,
 }
 
-pub async fn hello() -> impl Responder {
+pub fn configure(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/api")
+            .route("", web::get().to(hello))
+            .route("/echo", web::post().to(echo))
+            .route("/health", web::get().to(health_check))
+    );
+}
+
+async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello, World!")
 }
 
-pub async fn echo(msg: web::Json<Message>) -> impl Responder {
+async fn echo(msg: web::Json<Message>) -> impl Responder {
     HttpResponse::Ok().json(msg.0)
 }
 
-pub async fn health_check() -> impl Responder {
+async fn health_check() -> impl Responder {
     HttpResponse::Ok().json(serde_json::json!({
         "status": "healthy",
         "timestamp": chrono::Utc::now().to_rfc3339()
