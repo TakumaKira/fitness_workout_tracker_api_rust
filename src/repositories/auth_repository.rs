@@ -138,6 +138,27 @@ impl AuthRepository {
         })
     }
 
+    pub fn validate_session(&self, session_token: &str) -> Result<(), AuthError> {
+        use crate::schema::public::sessions;
+        let mut conn = db::config::establish_connection();
+        let now = chrono::Utc::now().naive_utc();
+
+        // Delete expired sessions first
+        diesel::delete(sessions::table)
+            .filter(sessions::expires_at.lt(now))
+            .execute(&mut conn)
+            .map_err(AuthError::from)?;
+
+        // Validate session
+        sessions::table
+            .filter(sessions::token.eq(session_token))
+            .filter(sessions::expires_at.gt(now))
+            .first::<Session>(&mut conn)
+            .map_err(|_| AuthError::InvalidSession)?;
+
+        Ok(())
+    }
+
     pub fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError> {
         use crate::schema::public::sessions;
         let mut conn = db::config::establish_connection();
