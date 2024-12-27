@@ -13,7 +13,6 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(CsrfProtection)
             .service(routes::auth::get_scope())
-            .service(routes::users::get_scope())
             .service(routes::general::get_scope())
     })
     .bind(&address)?

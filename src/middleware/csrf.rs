@@ -8,7 +8,7 @@ use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     Error, HttpResponse,
 };
-use crate::repositories::user_repository::UserRepository;
+use crate::repositories::auth_repository::AuthRepository;
 use futures::{ready, Future};
 
 pub struct CsrfProtection;
@@ -54,7 +54,7 @@ where
             let csrf_token = req.headers().get("x-csrf-token").and_then(|h| h.to_str().ok()).map(String::from);
 
             if let (Some(session_id), Some(csrf_token)) = (session_id, csrf_token) {
-                let repo = UserRepository::new();
+                let repo = AuthRepository::new();
                 if repo.validate_csrf(&session_id, &csrf_token).is_err() {
                     let res = HttpResponse::Unauthorized()
                         .json(serde_json::json!({
