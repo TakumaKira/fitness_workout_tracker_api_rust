@@ -2,6 +2,7 @@ use actix_web::{cookie::{Cookie, SameSite}, get, http::StatusCode, post, web, Ht
 use serde::{Deserialize, Serialize};
 use csrf::CsrfToken;
 use crate::{models::user::User, repositories::auth_repository::{AuthError, AuthRepository}};
+use time::Duration;
 
 #[derive(Serialize)]
 pub struct TokenResponse {
@@ -37,16 +38,14 @@ impl LoginResponse {
 
 fn create_auth_response(
     user: User, 
-    csrf_token: String,
-    repo: &AuthRepository,
+    session_id: String,
     status: actix_web::http::StatusCode,
 ) -> Result<HttpResponse, AuthError> {
-    let session = repo.create_session(user.id, csrf_token)?;
     let response = LoginResponse::new(&user);
 
     Ok(HttpResponse::build(status)
         .cookie(
-            Cookie::build("session", session.token)
+            Cookie::build("session", session_id)
                 .http_only(true)
                 .secure(true)
                 .same_site(SameSite::Strict)
@@ -60,6 +59,7 @@ pub fn get_scope() -> Scope {
         .service(get_csrf_token)
         .service(register)
         .service(login)
+        .service(logout)
 }
 
 #[get("/csrf-token")]
@@ -92,13 +92,8 @@ async fn register(
     
     match repo.create_user(user_data.email.clone(), user_data.password.clone()) {
         Ok(user) => {
-            let csrf_token = req.headers()
-                .get("x-csrf-token")
-                .and_then(|h| h.to_str().ok())
-                .unwrap()
-                .to_string();
-
-            create_auth_response(user, csrf_token, &repo, StatusCode::CREATED)
+            let session_id = req.cookie("session_id").unwrap().value().to_string();
+            create_auth_response(user, session_id, StatusCode::CREATED)
                 .unwrap_or_else(|_| HttpResponse::InternalServerError().finish())
         },
         Err(AuthError::DuplicateEmail) => {
@@ -124,8 +119,9 @@ async fn login(
                 .and_then(|h| h.to_str().ok())
                 .unwrap()
                 .to_string();
-
-            create_auth_response(user, csrf_token, &repo, StatusCode::OK)
+            let session_id = req.cookie("session_id").unwrap().value().to_string();
+            repo.create_session(user.id, session_id.clone(), csrf_token).unwrap();
+            create_auth_response(user, session_id.clone(), StatusCode::OK)
                 .unwrap_or_else(|_| HttpResponse::InternalServerError().finish())
         },
         Err(AuthError::InvalidCredentials) => {
@@ -134,5 +130,26 @@ async fn login(
             }))
         },
         Err(_) => HttpResponse::InternalServerError().finish()
+    }
+}
+
+#[post("/logout")]
+async fn logout(req: HttpRequest) -> impl Responder {
+    if let Some(cookie) = req.cookie("session_id") {
+        let repo = AuthRepository::new();
+        let _ = repo.invalidate_session(cookie.value());  // Best effort deletion
+
+        HttpResponse::Ok()
+            .cookie(
+                Cookie::build("session", "")
+                    .http_only(true)
+                    .secure(true)
+                    .same_site(SameSite::Strict)
+                    .max_age(Duration::seconds(0))
+                    .finish()
+            )
+            .finish()
+    } else {
+        HttpResponse::Ok().finish()
     }
 }

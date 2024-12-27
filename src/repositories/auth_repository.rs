@@ -51,11 +51,11 @@ impl AuthRepository {
             .map_err(AuthError::from)
     }
 
-    pub fn create_session(&self, user_id: i64, csrf_token: String) -> Result<Session, AuthError> {
+    pub fn create_session(&self, user_id: i64, session_id: String, csrf_token: String) -> Result<Session, AuthError> {
         use crate::schema::public::sessions;
         let mut conn = db::config::establish_connection();
 
-        let new_session = Session::new(user_id, csrf_token);
+        let new_session = Session::new(user_id, session_id, csrf_token);
         let token = new_session.token.clone(); // Clone token before insert
 
         diesel::insert_into(sessions::table)
@@ -130,5 +130,16 @@ impl AuthRepository {
                 .first(conn)
                 .map_err(AuthError::from)
         })
+    }
+
+    pub fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError> {
+        use crate::schema::public::sessions;
+        let mut conn = db::config::establish_connection();
+        diesel::delete(sessions::table)
+            .filter(sessions::token.eq(session_token))
+            .execute(&mut conn)
+            .map_err(AuthError::from)?;
+
+        Ok(())
     }
 } 

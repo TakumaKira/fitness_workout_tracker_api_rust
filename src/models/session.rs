@@ -23,11 +23,11 @@ pub struct NewSession {
 }
 
 impl Session {
-    pub fn new(user_id: i64, csrf_token: String) -> NewSession {
+    pub fn new(user_id: i64, session_id: String, csrf_token: String) -> NewSession {
         let now = chrono::Utc::now().naive_utc();
         NewSession {
             user_id,
-            token: uuid::Uuid::new_v4().to_string(),
+            token: session_id,
             csrf_token,
             expires_at: now + chrono::Duration::hours(24),
             created_at: now,
