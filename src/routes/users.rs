@@ -10,7 +10,7 @@ pub struct CreateUserRequest {
 
 #[derive(Serialize)]
 pub struct UserResponse {
-    id: uuid::Uuid,
+    uuid: uuid::Uuid,
     email: String,
     created_at: chrono::DateTime<chrono::Utc>,
 }
@@ -29,7 +29,7 @@ async fn create_user(
     match repo.create_user(user_data.email.clone(), user_data.password.clone()) {
         Ok(user) => {
             let response = UserResponse {
-                id: user.id,
+                uuid: user.uuid,
                 email: user.email,
                 created_at: chrono::DateTime::from_naive_utc_and_offset(
                     user.created_at,

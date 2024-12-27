@@ -1,7 +1,8 @@
 -- Your SQL goes here
 CREATE TABLE "users"(
-	"id" UUID NOT NULL PRIMARY KEY,
-	"email" VARCHAR NOT NULL,
+	"id" SERIAL8 NOT NULL PRIMARY KEY,
+	"uuid" UUID NOT NULL,
+	"email" VARCHAR NOT NULL UNIQUE,
 	"password_hash" VARCHAR NOT NULL,
 	"created_at" TIMESTAMP NOT NULL,
 	"updated_at" TIMESTAMP NOT NULL

@@ -22,10 +22,14 @@ cargo install diesel_cli --no-default-features --features postgres
 diesel migration generate <MIGRATION_NAME> --diff-schema --database-url <DATABASE_URL>
 
 # Run the migrations for production (currently, PostgreSQL is supported)
-diesel migration run --migration-dir migrations/postgres --database-url <DATABASE_URL>
+diesel migration run --database-url <DATABASE_URL>
 
 # If you need to revert on production (PostgreSQL)
 diesel migration revert --database-url <DATABASE_URL>
+
+# After generating a migration, you need to update the schema.rs file
+diesel print-schema --database-url <DATABASE_URL> > src/schema.rs
+# If the result is not what you expect, make sure the schema name and database name is matching in the diesel.toml file and URL
 ```
 
 ## Environment Variables

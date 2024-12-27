@@ -13,7 +13,7 @@ impl UserRepository {
     }
 
     pub fn create_user(&self, email: String, password: String) -> QueryResult<User> {
-        use crate::schema::users;
+        use crate::schema::public::users;
 
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
@@ -22,14 +22,19 @@ impl UserRepository {
             .unwrap()
             .to_string();
 
-        let user = User::new(email, password_hash);
+        let new_user = User::new(email, password_hash);
 
         let mut conn = db::config::establish_connection();
 
         diesel::insert_into(users::table)
-            .values(&user)
+            .values(&new_user)
             .execute(&mut conn)
             .expect("Error creating user");
+
+        let user = users::table
+            .filter(users::uuid.eq(new_user.uuid))
+            .first(&mut conn)
+            .unwrap();
 
         Ok(user)
     }
