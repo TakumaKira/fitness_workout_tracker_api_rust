@@ -6,7 +6,31 @@ To run, you can simply run `cargo run` in the terminal, but I recommend using `c
 
 ## Database
 
-The database is a SQLite database that is created in the `src/db/config.rs` file by default. You can change the database URL in the `.env` file by setting the `DATABASE_URL` variable.
+### Specify the database URL
+
+The database should be a PostgreSQL database. You need to have a database created with the name `fitness_tracker_api_rust` and the database URL in the `.env` file by setting the `DATABASE_URL` variable.
+
+* Note: I wanted to use SQLite for development, but currently popular ORMs for Rust don't support dynamic switching database engines. I prioritize PostgreSQL for production.
+
+### Database Migrations
+
+```bash
+# Install diesel CLI if you haven't already
+cargo install diesel_cli --no-default-features --features postgres
+
+# Generate a new migration named 'create_users' for production (PostgreSQL)
+diesel migration generate <MIGRATION_NAME> --diff-schema --database-url <DATABASE_URL>
+
+# Run the migrations for production (currently, PostgreSQL is supported)
+diesel migration run --database-url <DATABASE_URL>
+
+# If you need to revert on production (PostgreSQL)
+diesel migration revert --database-url <DATABASE_URL>
+
+# After generating a migration, you need to update the schema.rs file
+diesel print-schema --database-url <DATABASE_URL> > src/schema.rs
+# If the result is not what you expect, make sure the schema name and database name is matching in the diesel.toml file and URL
+```
 
 ## Environment Variables
 

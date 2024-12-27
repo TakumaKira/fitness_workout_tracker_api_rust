@@ -1,7 +1,8 @@
-mod routes;
-mod db;
-
-use actix_web::{web, App, HttpServer};
+use actix_web::{App, HttpServer, web};
+use fitness_workout_tracker_api_rust::{
+    routes,
+    middleware::{csrf::CsrfProtection, session::SessionProtection}
+};
 use std::env;
 
 #[actix_web::main]
@@ -11,15 +12,16 @@ async fn main() -> std::io::Result<()> {
 
     println!("Server starting at http://{}", address);
     
-    // Initialize database pool
-    let pool = db::config::create_pool()
-        .await
-        .expect("Failed to create database pool");
-
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(pool.clone()))
-            .configure(routes::general::configure)
+            .wrap(CsrfProtection)
+            .service(
+                web::scope("/workouts")
+                    .wrap(SessionProtection)
+                    .service(routes::workout::get_scope())
+            )
+            .service(routes::auth::get_scope())
+            .service(routes::general::get_scope())
     })
     .bind(&address)?
     .run()
