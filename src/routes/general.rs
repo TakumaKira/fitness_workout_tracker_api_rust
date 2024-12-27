@@ -15,7 +15,7 @@ pub fn get_scope() -> Scope {
 
 #[get("/")]
 async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello, World!")
+    HttpResponse::Ok().body("It's running")
 }
 
 #[post("/echo")]

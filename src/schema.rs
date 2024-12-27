@@ -1,4 +1,9 @@
-// @generated automatically by Diesel CLI.
-
-pub mod fitness_workout_tracker_api_rust {
+diesel::table! {
+    users (id) {
+        id -> Uuid,
+        email -> Text,
+        password_hash -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
 }
