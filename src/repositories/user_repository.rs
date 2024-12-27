@@ -1,14 +1,17 @@
 use diesel::prelude::*;
-use crate::{db, models::user::User};
+use crate::{db, models::user::User, models::session::Session, models::temp_session::TempSession};
 use argon2::{
-    password_hash::{rand_core::OsRng, SaltString},
-    Argon2, PasswordHasher,
+    password_hash::{rand_core::OsRng, SaltString, PasswordHash},
+    Argon2, PasswordHasher, PasswordVerifier,
 };
 
 #[derive(Debug)]
 pub enum UserError {
     DuplicateEmail,
     DatabaseError(diesel::result::Error),
+    InvalidCredentials,
+    InvalidSession,
+    InvalidCsrf,
 }
 
 impl From<diesel::result::Error> for UserError {
@@ -55,5 +58,71 @@ impl UserRepository {
                 .first(conn)
                 .map_err(UserError::from)
         })
+    }
+
+    pub fn verify_credentials(&self, email: String, password: String) -> Result<User, UserError> {
+        use crate::schema::public::users;
+        let mut conn = db::config::establish_connection();
+
+        let user = users::table
+            .filter(users::email.eq(email))
+            .first::<User>(&mut conn)
+            .map_err(|_| UserError::InvalidCredentials)?;
+
+        let argon2 = Argon2::default();
+        let parsed_hash = PasswordHash::new(&user.password_hash)
+            .map_err(|_| UserError::InvalidCredentials)?;
+
+        if argon2.verify_password(password.as_bytes(), &parsed_hash).is_ok() {
+            Ok(user)
+        } else {
+            Err(UserError::InvalidCredentials)
+        }
+    }
+
+    pub fn create_session(&self, user_id: i64, csrf_token: String) -> Result<Session, UserError> {
+        use crate::schema::public::sessions;
+        let mut conn = db::config::establish_connection();
+
+        let session = Session::new(user_id, csrf_token);
+        diesel::insert_into(sessions::table)
+            .values(&session)
+            .execute(&mut conn)
+            .map_err(UserError::from)?;
+
+        Ok(session)
+    }
+
+    pub fn create_temp_session(&self, csrf_token: String) -> Result<TempSession, UserError> {
+        use crate::schema::public::temp_sessions;
+        let mut conn = db::config::establish_connection();
+
+        let session = TempSession::new(
+            uuid::Uuid::new_v4().to_string(),
+            csrf_token,
+        );
+
+        diesel::insert_into(temp_sessions::table)
+            .values(&session)
+            .execute(&mut conn)
+            .map_err(UserError::from)?;
+
+        Ok(session)
+    }
+
+    pub fn validate_csrf(&self, session_id: &str, csrf_token: &str) -> Result<(), UserError> {
+        use crate::schema::public::temp_sessions;
+        let mut conn = db::config::establish_connection();
+
+        let now = chrono::Utc::now().naive_utc();
+        
+        temp_sessions::table
+            .filter(temp_sessions::dsl::session_id.eq(session_id))
+            .filter(temp_sessions::dsl::expires_at.gt(now))
+            .filter(temp_sessions::dsl::csrf_token.eq(csrf_token))
+            .first::<TempSession>(&mut conn)
+            .map_err(|_| UserError::InvalidSession)?;
+
+        Ok(())
     }
 } 

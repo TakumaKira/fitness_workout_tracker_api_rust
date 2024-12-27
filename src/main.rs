@@ -11,6 +11,7 @@ async fn main() -> std::io::Result<()> {
     
     HttpServer::new(move || {
         App::new()
+            .service(routes::auth::get_scope())
             .service(routes::users::get_scope())
             .service(routes::general::get_scope())
     })
