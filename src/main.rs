@@ -16,7 +16,8 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(conn.clone()))
-            .configure(routes::general::configure)
+            .service(routes::users::get_scope())
+            .service(routes::general::get_scope())
     })
     .bind(&address)?
     .run()
