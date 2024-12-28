@@ -17,7 +17,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(CsrfProtection::<PgAuthRepository>::new())
             .app_data(auth_repo.clone())
-            .service(routes::auth::get_scope(auth_repo.clone()))
+            .service(routes::auth::get_scope::<PgAuthRepository>())
             .service(routes::general::get_scope())
     })
     .bind(&address)?

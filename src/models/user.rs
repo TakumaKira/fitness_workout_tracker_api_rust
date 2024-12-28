@@ -2,7 +2,7 @@ use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use uuid::Uuid;
 
-#[derive(Queryable, Selectable)]
+#[derive(Queryable, Selectable, Clone)]
 #[diesel(table_name = crate::schema::public::users)]
 pub struct User {
     pub id: i64,
@@ -13,8 +13,8 @@ pub struct User {
     pub updated_at: NaiveDateTime,
 }
 
-#[derive(Insertable)]
-  #[diesel(table_name = crate::schema::public::users)]
+#[derive(Insertable, Clone)]
+#[diesel(table_name = crate::schema::public::users)]
 pub struct NewUser {
     pub uuid: uuid::Uuid,
     pub email: String,
