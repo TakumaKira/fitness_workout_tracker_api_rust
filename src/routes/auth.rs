@@ -1,7 +1,7 @@
 use actix_web::{cookie::{Cookie, SameSite}, get, http::StatusCode, post, web, HttpRequest, HttpResponse, Responder, Scope};
 use serde::{Deserialize, Serialize};
 use csrf::CsrfToken;
-use crate::{models::user::User, repositories::auth_repository::{AuthError, AuthRepository}};
+use crate::{models::user::User, repositories::auth_repository::{AuthError, AuthRepository, PgAuthRepository}};
 use time::Duration;
 
 #[derive(Serialize)]
@@ -54,8 +54,9 @@ fn create_auth_response(
         .json(response))
 }
 
-pub fn get_scope() -> Scope {
+pub fn get_scope<T: AuthRepository + 'static>(repo: web::Data<T>) -> Scope {
     web::scope("/auth")
+        .app_data(repo)
         .service(get_csrf_token)
         .service(register)
         .service(login)
@@ -63,11 +64,10 @@ pub fn get_scope() -> Scope {
 }
 
 #[get("/csrf-token")]
-async fn get_csrf_token() -> impl Responder {
+async fn get_csrf_token(repo: web::Data<PgAuthRepository>) -> impl Responder {
     let random_bytes: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
     let token = CsrfToken::new(random_bytes);
     
-    let repo = AuthRepository::new();
     let temp_session = repo.create_temp_session(token.b64_string()).unwrap();
 
     HttpResponse::Ok()
@@ -87,9 +87,8 @@ async fn get_csrf_token() -> impl Responder {
 async fn register(
     user_data: web::Json<RegisterRequest>,
     req: HttpRequest,
+    repo: web::Data<PgAuthRepository>,
 ) -> impl Responder {
-    let repo = AuthRepository::new();
-    
     match repo.create_user(user_data.email.clone(), user_data.password.clone()) {
         Ok(user) => {
             let session_id = req.cookie("session_id").unwrap().value().to_string();
@@ -109,9 +108,8 @@ async fn register(
 async fn login(
     user_data: web::Json<LoginRequest>,
     req: HttpRequest,
+    repo: web::Data<PgAuthRepository>,
 ) -> impl Responder {
-    let repo = AuthRepository::new();
-    
     match repo.verify_credentials(user_data.email.clone(), user_data.password.clone()) {
         Ok(user) => {
             let csrf_token = req.headers()
@@ -134,9 +132,11 @@ async fn login(
 }
 
 #[post("/logout")]
-async fn logout(req: HttpRequest) -> impl Responder {
+async fn logout(
+    req: HttpRequest,
+    repo: web::Data<PgAuthRepository>,
+) -> impl Responder {
     if let Some(cookie) = req.cookie("session_id") {
-        let repo = AuthRepository::new();
         let _ = repo.invalidate_session(cookie.value());  // Best effort deletion
 
         HttpResponse::Ok()

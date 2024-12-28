@@ -26,14 +26,26 @@ impl From<diesel::result::Error> for AuthError {
     }
 }
 
-pub struct AuthRepository;
+pub trait AuthRepository {
+    fn create_temp_session(&self, csrf_token: String) -> Result<TempSession, AuthError>;
+    fn create_session(&self, user_id: i64, session_id: String, csrf_token: String) -> Result<Session, AuthError>;
+    fn validate_csrf(&self, session_id: &str, csrf_token: &str) -> Result<(), AuthError>;
+    fn verify_credentials(&self, email: String, password: String) -> Result<User, AuthError>;
+    fn create_user(&self, email: String, password: String) -> Result<User, AuthError>;
+    fn validate_session(&self, session_token: &str) -> Result<(), AuthError>;
+    fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError>;
+}
 
-impl AuthRepository {
+pub struct PgAuthRepository;
+
+impl PgAuthRepository {
     pub fn new() -> Self {
         Self {}
     }
+}
 
-    pub fn create_temp_session(&self, csrf_token: String) -> Result<TempSession, AuthError> {
+impl AuthRepository for PgAuthRepository {
+    fn create_temp_session(&self, csrf_token: String) -> Result<TempSession, AuthError> {
         use crate::schema::public::temp_sessions;
         let mut conn = db::config::establish_connection();
 
@@ -51,7 +63,7 @@ impl AuthRepository {
             .map_err(AuthError::from)
     }
 
-    pub fn create_session(&self, user_id: i64, session_id: String, csrf_token: String) -> Result<Session, AuthError> {
+    fn create_session(&self, user_id: i64, session_id: String, csrf_token: String) -> Result<Session, AuthError> {
         use crate::schema::public::sessions;
         let mut conn = db::config::establish_connection();
 
@@ -69,7 +81,7 @@ impl AuthRepository {
             .map_err(AuthError::from)
     }
 
-    pub fn validate_csrf(&self, session_id: &str, csrf_token: &str) -> Result<(), AuthError> {
+    fn validate_csrf(&self, session_id: &str, csrf_token: &str) -> Result<(), AuthError> {
         use crate::schema::public::temp_sessions;
         let mut conn = db::config::establish_connection();
         let now = chrono::Utc::now().naive_utc();
@@ -91,7 +103,7 @@ impl AuthRepository {
         Ok(())
     }
 
-    pub fn verify_credentials(&self, email: String, password: String) -> Result<User, AuthError> {
+    fn verify_credentials(&self, email: String, password: String) -> Result<User, AuthError> {
         use crate::schema::public::users;
         let mut conn = db::config::establish_connection();
 
@@ -111,7 +123,7 @@ impl AuthRepository {
         }
     }
 
-    pub fn create_user(&self, email: String, password: String) -> Result<User, AuthError> {
+    fn create_user(&self, email: String, password: String) -> Result<User, AuthError> {
         use crate::schema::public::users;
         let mut conn = db::config::establish_connection();
 
@@ -138,7 +150,7 @@ impl AuthRepository {
         })
     }
 
-    pub fn validate_session(&self, session_token: &str) -> Result<(), AuthError> {
+    fn validate_session(&self, session_token: &str) -> Result<(), AuthError> {
         use crate::schema::public::sessions;
         let mut conn = db::config::establish_connection();
         let now = chrono::Utc::now().naive_utc();
@@ -159,7 +171,7 @@ impl AuthRepository {
         Ok(())
     }
 
-    pub fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError> {
+    fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError> {
         use crate::schema::public::sessions;
         let mut conn = db::config::establish_connection();
         diesel::delete(sessions::table)
