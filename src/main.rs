@@ -1,6 +1,6 @@
 use actix_web::{App, HttpServer, web};
 use fitness_workout_tracker_api_rust::{
-    middleware::csrf::CsrfProtection, repositories::auth_repository::PgAuthRepository, routes
+    middleware::{csrf::CsrfProtection, session::SessionProtection}, repositories::auth_repository::PgAuthRepository, routes
 };
 use std::env;
 
@@ -18,6 +18,11 @@ async fn main() -> std::io::Result<()> {
             .wrap(CsrfProtection::<PgAuthRepository>::new())
             .app_data(auth_repo.clone())
             .service(routes::auth::get_scope::<PgAuthRepository>())
+            .service(
+                web::scope("/workouts")
+                    .wrap(SessionProtection::<PgAuthRepository>::new())
+                    .service(routes::workout::get_scope())
+            )
             .service(routes::general::get_scope())
     })
     .bind(&address)?

@@ -165,6 +165,11 @@ async fn test_login_flow() {
 }
 
 #[actix_web::test]
+async fn test_guarded_route() {
+    let mock_repo = web::Data::new(MockAuthRepo::new());
+}
+
+#[actix_web::test]
 async fn test_logout() {
     let mock_repo = web::Data::new(MockAuthRepo::new());
     
