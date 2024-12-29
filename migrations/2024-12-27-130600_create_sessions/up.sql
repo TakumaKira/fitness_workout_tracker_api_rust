@@ -1,6 +1,6 @@
 CREATE TABLE "sessions" (
     "id" BIGINT NOT NULL PRIMARY KEY,
-    "user_id" BIGINT NOT NULL REFERENCES users(id),
+    "user_id" BIGINT NOT NULL,
     "token" VARCHAR NOT NULL UNIQUE,
     "csrf_token" VARCHAR NOT NULL,
     "expires_at" TIMESTAMP NOT NULL,

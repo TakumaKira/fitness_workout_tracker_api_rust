@@ -145,6 +145,116 @@
             ],
             "url": "{{base_url}}/auth/logout"
           }
+        },
+        {
+          "name": "Get CSRF Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has csrf_token\", function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.csrf_token).to.be.a('string');",
+                  "    pm.collectionVariables.set(\"csrf_token\", response.csrf_token);",
+                  "});",
+                  "",
+                  "pm.test(\"Session cookie is set\", function () {",
+                  "    pm.expect(pm.cookies.get('session_id')).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/csrf-token"
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has user data\", function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.email).to.eql(pm.collectionVariables.get(\"test_email\"));",
+                  "    pm.expect(response.uuid).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"{{test_email}}\",\n    \"password\": \"{{test_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "// Verify can't login with deleted account",
+                  "pm.sendRequest({",
+                  "    url: pm.variables.get(\"base_url\") + \"/auth/login\",",
+                  "    method: \"POST\",",
+                  "    header: {",
+                  "        \"Content-Type\": \"application/json\",",
+                  "        \"x-csrf-token\": pm.collectionVariables.get(\"csrf_token\")",
+                  "    },",
+                  "    body: {",
+                  "        mode: \"raw\",",
+                  "        raw: JSON.stringify({",
+                  "            email: pm.variables.get(\"test_email\"),",
+                  "            password: pm.variables.get(\"test_password\")",
+                  "        })",
+                  "    }",
+                  "}, function (err, res) {",
+                  "    pm.test(\"Cannot login with deleted account\", function () {",
+                  "        pm.expect(res.code).to.equal(401);",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/auth/user"
+          }
         }
       ]
     }

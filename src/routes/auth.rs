@@ -60,6 +60,7 @@ pub fn get_scope<T: AuthRepository + 'static>() -> Scope {
         .route("/register", web::post().to(register::<T>))
         .route("/login", web::post().to(login::<T>))
         .route("/logout", web::post().to(logout::<T>))
+        .route("/user", web::delete().to(delete_user::<T>))
 }
 
 async fn get_csrf_token<T: AuthRepository>(repo: web::Data<T>) -> impl Responder {
@@ -153,4 +154,32 @@ async fn logout<T: AuthRepository>(
                 .finish()
         )
         .finish()
+}
+
+async fn delete_user<T: AuthRepository>(
+    req: HttpRequest,
+    repo: web::Data<T>,
+) -> impl Responder {
+    if let Some(session_cookie) = req.cookie("session_id") {
+        match repo.delete_user(session_cookie.value()) {
+            Ok(_) => HttpResponse::NoContent()
+                .cookie(
+                    Cookie::build("session_id", "")
+                        .http_only(true)
+                        .secure(true)
+                        .same_site(SameSite::Strict)
+                        .max_age(Duration::seconds(0))
+                        .finish()
+                )
+                .finish(),
+            Err(AuthError::InvalidSession) => HttpResponse::Unauthorized().json(serde_json::json!({
+                "error": "Invalid session"
+            })),
+            Err(_) => HttpResponse::InternalServerError().finish()
+        }
+    } else {
+        HttpResponse::Unauthorized().json(serde_json::json!({
+            "error": "Authentication required"
+        }))
+    }
 }

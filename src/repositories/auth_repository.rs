@@ -12,6 +12,7 @@ pub enum AuthError {
     InvalidCredentials,
     InvalidSession,
     InvalidCsrf,
+    NotFound,
 }
 
 impl From<diesel::result::Error> for AuthError {
@@ -34,6 +35,7 @@ pub trait AuthRepository {
     fn create_user(&self, email: String, password: String) -> Result<User, AuthError>;
     fn validate_session(&self, session_token: &str) -> Result<(), AuthError>;
     fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError>;
+    fn delete_user(&self, session_token: &str) -> Result<(), AuthError>;
 }
 
 pub struct PgAuthRepository;
@@ -176,6 +178,25 @@ impl AuthRepository for PgAuthRepository {
         let mut conn = db::config::establish_connection();
         diesel::delete(sessions::table)
             .filter(sessions::token.eq(session_token))
+            .execute(&mut conn)
+            .map_err(AuthError::from)?;
+
+        Ok(())
+    }
+
+    fn delete_user(&self, session_token: &str) -> Result<(), AuthError> {
+        use crate::schema::public::{users, sessions};
+        let mut conn = db::config::establish_connection();
+
+        // First validate session
+        let session = sessions::table
+            .filter(sessions::token.eq(session_token))
+            .first::<Session>(&mut conn)
+            .map_err(|_| AuthError::InvalidSession)?;
+
+        // Delete user associated with session
+        diesel::delete(users::table)
+            .filter(users::id.eq(session.user_id))
             .execute(&mut conn)
             .map_err(AuthError::from)?;
 

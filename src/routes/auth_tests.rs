@@ -96,6 +96,24 @@ impl AuthRepository for MockAuthRepo {
         sessions.retain(|s| s.token != session_token);
         Ok(())
     }
+
+    fn delete_user(&self, session_token: &str) -> Result<(), AuthError> {
+        let mut sessions = self.sessions.lock().unwrap();
+        let session = sessions.iter()
+            .find(|s| s.token == session_token)
+            .ok_or(AuthError::InvalidSession)?;
+        
+        let user_id = session.user_id;
+        
+        // Remove the session
+        sessions.retain(|s| s.token != session_token);
+        
+        // Remove the user
+        let mut users = self.users.lock().unwrap();
+        users.retain(|u| u.id != user_id);
+        
+        Ok(())
+    }
 }
 
 #[actix_web::test]
@@ -449,6 +467,78 @@ async fn test_logout() {
     let req = test::TestRequest::get()
         .uri("/api/test")
         .cookie(session.clone())
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
+}
+
+#[actix_web::test]
+async fn test_delete_user() {
+    let mock_repo = web::Data::new(MockAuthRepo::new());
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(mock_repo.clone())
+            .service(auth::get_scope::<MockAuthRepo>())
+            .service(
+                web::scope("/api")
+                    .wrap(SessionProtection::<MockAuthRepo>::new())
+                    .route("/test", web::get().to(|| async { HttpResponse::Ok().finish() }))
+            )
+    ).await;
+
+    // Register a user
+    let req = test::TestRequest::get()
+        .uri("/auth/csrf-token")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let session_cookie = resp.response().cookies()
+        .find(|c| c.name() == "session_id")
+        .expect("Session cookie not found");
+    let session_id = session_cookie.value();
+    let next_cookie = Cookie::new("session_id", session_id.to_string());
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    let csrf_token = body["csrf_token"].as_str().unwrap();
+
+    let req = test::TestRequest::post()
+        .uri("/auth/register")
+        .cookie(next_cookie.clone())
+        .insert_header(("x-csrf-token", csrf_token))
+        .set_json(json!({
+            "email": "test@example.com",
+            "password": "password123"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let session = resp.response().cookies()
+        .find(|c| c.name() == "session_id")
+        .expect("Session cookie not found");
+
+    // Delete user
+    let req = test::TestRequest::delete()
+        .uri("/auth/user")
+        .cookie(session.clone())
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 204);
+
+    // Verify session is invalid after deletion
+    let req = test::TestRequest::get()
+        .uri("/api/test")
+        .cookie(session)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
+
+    // Try to login with deleted user
+    let req = test::TestRequest::post()
+        .uri("/auth/login")
+        .cookie(next_cookie.clone())
+        .insert_header(("x-csrf-token", csrf_token))
+        .set_json(json!({
+            "email": "test@example.com",
+            "password": "password123"
+        }))
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 401);

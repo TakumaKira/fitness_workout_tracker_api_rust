@@ -33,6 +33,8 @@ pub mod public {
         }
     }
 
+    diesel::joinable!(sessions -> users (user_id));
+
     diesel::allow_tables_to_appear_in_same_query!(
         sessions,
         temp_sessions,
