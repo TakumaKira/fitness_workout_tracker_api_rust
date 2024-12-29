@@ -118,8 +118,13 @@ async fn login<T: AuthRepository>(
                 .unwrap()
                 .to_string();
             let session_id = req.cookie("session_id").unwrap().value().to_string();
-            repo.create_session(user.id, session_id.clone(), csrf_token).unwrap();
-            create_auth_response(user, session_id.clone(), StatusCode::OK)
+            
+            // In case the client already has a valid session, we can't create a new session with the same session_id
+            if repo.validate_session(&session_id).is_err() {
+                repo.create_session(user.id, session_id.clone(), csrf_token).unwrap();
+            }
+            
+            create_auth_response(user, session_id, StatusCode::OK)
                 .unwrap_or_else(|_| HttpResponse::InternalServerError().finish())
         },
         Err(AuthError::InvalidCredentials) => {

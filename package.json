@@ -1,0 +1,11 @@
+{
+  "name": "fitness-workout-tracker-api-tests",
+  "version": "1.0.0",
+  "description": "E2E tests for Fitness Workout Tracker API",
+  "scripts": {
+    "test:e2e": "newman run tests/postman/fitness_workout_tracker_api.postman_collection.json -e tests/postman/local.postman_environment.json"
+  },
+  "devDependencies": {
+    "newman": "^6.2.1"
+  }
+} 
