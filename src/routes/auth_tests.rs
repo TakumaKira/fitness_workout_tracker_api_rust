@@ -1,8 +1,8 @@
-use actix_web::{cookie::Cookie, test, web, App};
+use actix_web::{cookie::Cookie, test, web, App, HttpResponse};
 use serde_json::json;
 use std::sync::Mutex;
 use crate::{
-    middleware::csrf::CsrfProtection, models::{session::Session, temp_session::TempSession, user::User}, repositories::auth_repository::{AuthError, AuthRepository}, routes::auth
+    middleware::{csrf::CsrfProtection, session::SessionProtection}, models::{session::Session, temp_session::TempSession, user::User}, repositories::auth_repository::{AuthError, AuthRepository}, routes::auth
 };
 
 pub struct MockAuthRepo {
@@ -157,23 +157,299 @@ async fn test_csrf_token_flow() {
 async fn test_login_flow() {
     let mock_repo = web::Data::new(MockAuthRepo::new());
     
-    // ... similar setup to register test
-    // 1. Get CSRF token
-    // 2. Register a user
-    // 3. Try login with correct credentials
-    // 4. Try login with wrong credentials
+    let app = test::init_service(
+        App::new()
+            .app_data(mock_repo.clone())
+            .service(auth::get_scope::<MockAuthRepo>())
+    ).await;
+
+    // First get CSRF token
+    let req = test::TestRequest::get()
+        .uri("/auth/csrf-token")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let session_cookie = resp.response().cookies()
+        .find(|c| c.name() == "session_id")
+        .expect("Session cookie not found");
+    let session_id = session_cookie.value();
+    let next_cookie = Cookie::new("session_id", session_id.to_string());
+
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    let csrf_token = body["csrf_token"].as_str().unwrap();
+
+    // Register a user first
+    let req = test::TestRequest::post()
+        .uri("/auth/register")
+        .cookie(next_cookie.clone())
+        .insert_header(("x-csrf-token", csrf_token))
+        .set_json(json!({
+            "email": "test@example.com",
+            "password": "password123"
+        }))
+        .to_request();
+    let _ = test::call_service(&app, req).await;
+
+    // Try login with correct credentials
+    let req = test::TestRequest::post()
+        .uri("/auth/login")
+        .cookie(next_cookie.clone())
+        .insert_header(("x-csrf-token", csrf_token))
+        .set_json(json!({
+            "email": "test@example.com",
+            "password": "password123"
+        }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    // Try login with wrong password
+    let req = test::TestRequest::post()
+        .uri("/auth/login")
+        .cookie(next_cookie.clone())
+        .insert_header(("x-csrf-token", csrf_token))
+        .set_json(json!({
+            "email": "test@example.com",
+            "password": "wrongpassword"
+        }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
+
+    // Try login with non-existent email
+    let req = test::TestRequest::post()
+        .uri("/auth/login")
+        .cookie(next_cookie)
+        .insert_header(("x-csrf-token", csrf_token))
+        .set_json(json!({
+            "email": "nonexistent@example.com",
+            "password": "password123"
+        }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
+} 
+
+#[actix_web::test]
+async fn test_guarded_route_on_register() {
+    let mock_repo = web::Data::new(MockAuthRepo::new());
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(mock_repo.clone())
+            .service(auth::get_scope::<MockAuthRepo>())
+            .service(
+                web::scope("/api")
+                    .wrap(SessionProtection::<MockAuthRepo>::new())
+                    .route("/test", web::get().to(|| async { HttpResponse::Ok().finish() }))
+            )
+    ).await;
+
+    // Try accessing protected route without session
+    let req = test::TestRequest::get()
+        .uri("/api/test")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
+
+    // Get session by logging in
+    let req = test::TestRequest::get()
+        .uri("/auth/csrf-token")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let session_cookie = resp.response().cookies()
+        .find(|c| c.name() == "session_id")
+        .expect("Session cookie not found");
+    let session_id = session_cookie.value();
+    let next_cookie = Cookie::new("session_id", session_id.to_string());
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    let csrf_token = body["csrf_token"].as_str().unwrap();
+
+    // Register and login
+    let req = test::TestRequest::post()
+        .uri("/auth/register")
+        .cookie(next_cookie)
+        .insert_header(("x-csrf-token", csrf_token))
+        .set_json(json!({
+            "email": "test@example.com",
+            "password": "password123"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let session_cookie = resp.response().cookies()
+        .find(|c| c.name() == "session_id")
+        .expect("Session cookie not found");
+    let session_id = session_cookie.value();
+    let next_cookie = Cookie::new("session_id", session_id.to_string());
+
+    // Try accessing protected route with valid session
+    let req = test::TestRequest::get()
+        .uri("/api/test")
+        .cookie(next_cookie)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    // Try accessing protected route with invalid session
+    let req = test::TestRequest::get()
+        .uri("/api/test")
+        .cookie(Cookie::new("session_id", "invalid-session"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
 }
 
 #[actix_web::test]
-async fn test_guarded_route() {
+async fn test_guarded_route_on_login() {
     let mock_repo = web::Data::new(MockAuthRepo::new());
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(mock_repo.clone())
+            .service(auth::get_scope::<MockAuthRepo>())
+            .service(
+                web::scope("/api")
+                    .wrap(SessionProtection::<MockAuthRepo>::new())
+                    .route("/test", web::get().to(|| async { HttpResponse::Ok().finish() }))
+            )
+    ).await;
+
+    // First register a user
+    let req = test::TestRequest::get()
+        .uri("/auth/csrf-token")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let session_cookie = resp.response().cookies()
+        .find(|c| c.name() == "session_id")
+        .expect("Session cookie not found");
+    let session_id = session_cookie.value();
+    let next_cookie = Cookie::new("session_id", session_id.to_string());
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    let csrf_token = body["csrf_token"].as_str().unwrap();
+
+    let req = test::TestRequest::post()
+        .uri("/auth/register")
+        .cookie(next_cookie)
+        .insert_header(("x-csrf-token", csrf_token))
+        .set_json(json!({
+            "email": "test@example.com",
+            "password": "password123"
+        }))
+        .to_request();
+    let _ = test::call_service(&app, req).await;
+
+    // Get new CSRF token for login
+    let req = test::TestRequest::get()
+        .uri("/auth/csrf-token")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let session_cookie = resp.response().cookies()
+        .find(|c| c.name() == "session_id")
+        .expect("Session cookie not found");
+    let session_id = session_cookie.value();
+    let next_cookie = Cookie::new("session_id", session_id.to_string());
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    let csrf_token = body["csrf_token"].as_str().unwrap();
+
+    // Login
+    let req = test::TestRequest::post()
+        .uri("/auth/login")
+        .cookie(next_cookie)
+        .insert_header(("x-csrf-token", csrf_token))
+        .set_json(json!({
+            "email": "test@example.com",
+            "password": "password123"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let session = resp.response().cookies()
+        .find(|c| c.name() == "session_id")
+        .expect("Session cookie not found");
+
+    // Try accessing protected route with valid session from login
+    let req = test::TestRequest::get()
+        .uri("/api/test")
+        .cookie(session.clone())
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    // Try accessing protected route with invalid session
+    let req = test::TestRequest::get()
+        .uri("/api/test")
+        .cookie(Cookie::new("session_id", "invalid-session"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
 }
 
 #[actix_web::test]
 async fn test_logout() {
     let mock_repo = web::Data::new(MockAuthRepo::new());
     
-    // ... test logout functionality
-    // 1. Create a session
-    // 2. Verify logout invalidates it
-} 
+    let app = test::init_service(
+        App::new()
+            .app_data(mock_repo.clone())
+            .service(auth::get_scope::<MockAuthRepo>())
+            .service(
+                web::scope("/api")
+                    .wrap(SessionProtection::<MockAuthRepo>::new())
+                    .route("/test", web::get().to(|| async { HttpResponse::Ok().finish() }))
+            )
+    ).await;
+
+    // Get CSRF token and register
+    let req = test::TestRequest::get()
+        .uri("/auth/csrf-token")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let session_cookie = resp.response().cookies()
+        .find(|c| c.name() == "session_id")
+        .expect("Session cookie not found");
+    let session_id = session_cookie.value();
+    let next_cookie = Cookie::new("session_id", session_id.to_string());
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    let csrf_token = body["csrf_token"].as_str().unwrap();
+
+    let req = test::TestRequest::post()
+        .uri("/auth/register")
+        .cookie(next_cookie)
+        .insert_header(("x-csrf-token", csrf_token))
+        .set_json(json!({
+            "email": "test@example.com",
+            "password": "password123"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let session = resp.response().cookies()
+        .find(|c| c.name() == "session_id")
+        .expect("Session cookie not found");
+
+    // Verify session works
+    let req = test::TestRequest::get()
+        .uri("/api/test")
+        .cookie(session.clone())
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    // Logout
+    let req = test::TestRequest::post()
+        .uri("/auth/logout")
+        .cookie(session.clone())
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    // Verify session is invalidated
+    let req = test::TestRequest::get()
+        .uri("/api/test")
+        .cookie(session.clone())
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
+}

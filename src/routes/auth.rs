@@ -45,7 +45,7 @@ fn create_auth_response(
 
     Ok(HttpResponse::build(status)
         .cookie(
-            Cookie::build("session", session_id)
+            Cookie::build("session_id", session_id)
                 .http_only(true)
                 .secure(true)
                 .same_site(SameSite::Strict)
@@ -86,7 +86,13 @@ async fn register<T: AuthRepository>(
 ) -> impl Responder {
     match repo.create_user(user_data.email.clone(), user_data.password.clone()) {
         Ok(user) => {
+            let csrf_token = req.headers()
+                .get("x-csrf-token")
+                .and_then(|h| h.to_str().ok())
+                .unwrap()
+                .to_string();
             let session_id = req.cookie("session_id").unwrap().value().to_string();
+            repo.create_session(user.id, session_id.clone(), csrf_token).unwrap();
             create_auth_response(user, session_id, StatusCode::CREATED)
                 .unwrap_or_else(|_| HttpResponse::InternalServerError().finish())
         },

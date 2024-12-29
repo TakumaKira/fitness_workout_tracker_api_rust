@@ -61,7 +61,7 @@ where
     }
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        if let Some(session) = req.cookie("session") {
+        if let Some(session) = req.cookie("session_id") {
             if let Some(repo) = req.app_data::<web::Data<T>>() {
                 if repo.validate_session(session.value()).is_ok() {
                     return Either::left(SessionFuture {
