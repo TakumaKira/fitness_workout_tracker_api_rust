@@ -2,7 +2,19 @@
 
 This is a challenge from [here](https://roadmap.sh/backend/project-ideas#9-fitness-workout-tracker).
 
-To run, you can simply run `cargo run` in the terminal, but I recommend using `cargo watch -x 'run'` for development. You need [cargo-watch](https://crates.io/crates/cargo-watch) installed.
+To run, you can simply run
+
+```bash
+cargo run
+```
+
+in the terminal, but I recommend using
+
+```bash
+cargo watch -x 'run'
+```
+
+for development. But, you need [cargo-watch](https://crates.io/crates/cargo-watch) installed.
 
 ## Database
 
@@ -35,3 +47,17 @@ diesel print-schema --database-url <DATABASE_URL> > src/schema.rs
 ## Environment Variables
 
 The `PORT` variable is used to set the port that the server will run on. You can change the port in the `.env` file by setting the `PORT` variable.
+
+## Testing
+
+### Unit Tests
+
+```bash
+cargo test
+```
+
+### E2E Tests
+
+```bash
+scripts/run_postman_tests.sh
+```

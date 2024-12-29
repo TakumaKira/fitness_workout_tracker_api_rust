@@ -8,7 +8,7 @@ cargo run &
 SERVER_PID=$!
 
 # Wait for server to start
-sleep 2
+sleep 3
 
 # Run tests
 npm run test:e2e
