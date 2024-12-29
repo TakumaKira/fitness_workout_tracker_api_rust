@@ -142,18 +142,15 @@ async fn logout<T: AuthRepository>(
 ) -> impl Responder {
     if let Some(cookie) = req.cookie("session_id") {
         let _ = repo.invalidate_session(cookie.value());  // Best effort deletion
-
-        HttpResponse::Ok()
-            .cookie(
-                Cookie::build("session", "")
-                    .http_only(true)
-                    .secure(true)
-                    .same_site(SameSite::Strict)
-                    .max_age(Duration::seconds(0))
-                    .finish()
-            )
-            .finish()
-    } else {
-        HttpResponse::Ok().finish()
     }
+    HttpResponse::Ok()
+        .cookie(
+            Cookie::build("session_id", "")
+                .http_only(true)
+                .secure(true)
+                .same_site(SameSite::Strict)
+                .max_age(Duration::seconds(0))
+                .finish()
+        )
+        .finish()
 }

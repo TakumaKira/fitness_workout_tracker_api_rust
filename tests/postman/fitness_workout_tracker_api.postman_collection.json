@@ -115,6 +115,36 @@
               }
             }
           }
+        },
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Session cookie is cleared\", function () {",
+                  "    const sessionCookie = pm.cookies.get('session_id');",
+                  "    pm.expect(sessionCookie).to.equal(undefined);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/auth/logout"
+          }
         }
       ]
     }
