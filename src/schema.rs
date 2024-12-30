@@ -33,11 +33,25 @@ pub mod public {
         }
     }
 
+    diesel::table! {
+        workouts (id) {
+            id -> Int8,
+            uuid -> Uuid,
+            user_id -> Int8,
+            name -> Varchar,
+            description -> Nullable<Text>,
+            created_at -> Timestamp,
+            updated_at -> Timestamp,
+        }
+    }
+
     diesel::joinable!(sessions -> users (user_id));
+    diesel::joinable!(workouts -> users (user_id));
 
     diesel::allow_tables_to_appear_in_same_query!(
         sessions,
         temp_sessions,
         users,
+        workouts,
     );
 }

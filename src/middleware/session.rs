@@ -4,9 +4,7 @@ use std::{
 use pin_project::pin_project;
 use actix_utils::future::{ok, Either, Ready};
 use actix_web::{
-    body::{EitherBody, MessageBody},
-    dev::{Service, ServiceRequest, ServiceResponse, Transform},
-    web, Error, HttpResponse,
+    body::{EitherBody, MessageBody}, dev::{Service, ServiceRequest, ServiceResponse, Transform}, web, Error, HttpMessage, HttpResponse
 };
 use crate::repositories::auth_repository::AuthRepository;
 use futures::{ready, Future};
@@ -63,7 +61,8 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         if let Some(session) = req.cookie("session_id") {
             if let Some(repo) = req.app_data::<web::Data<T>>() {
-                if repo.validate_session(session.value()).is_ok() {
+                if let Ok(user_id) = repo.validate_session(session.value()) {
+                    req.extensions_mut().insert(user_id);
                     return Either::left(SessionFuture {
                         fut: self.service.call(req),
                         _phantom: PhantomData,

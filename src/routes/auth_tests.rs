@@ -83,12 +83,12 @@ impl AuthRepository for MockAuthRepo {
         Ok(user)
     }
 
-    fn validate_session(&self, session_token: &str) -> Result<(), AuthError> {
+    fn validate_session(&self, session_token: &str) -> Result<i64, AuthError> {
         let sessions = self.sessions.lock().unwrap();
-        sessions.iter()
+        let session = sessions.iter()
             .find(|s| s.token == session_token)
             .ok_or(AuthError::InvalidSession)?;
-        Ok(())
+        Ok(session.user_id)
     }
 
     fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError> {

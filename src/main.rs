@@ -1,6 +1,6 @@
 use actix_web::{App, HttpServer, web};
 use fitness_workout_tracker_api_rust::{
-    middleware::{csrf::CsrfProtection, session::SessionProtection}, repositories::auth_repository::PgAuthRepository, routes
+    middleware::{csrf::CsrfProtection, session::SessionProtection}, repositories::{auth_repository::PgAuthRepository, workout_repository::PgWorkoutRepository}, routes
 };
 use std::env;
 
@@ -10,6 +10,7 @@ async fn main() -> std::io::Result<()> {
     let address = format!("127.0.0.1:{}", port);
 
     let auth_repo = web::Data::new(PgAuthRepository::new());
+    let workout_repo = web::Data::new(PgWorkoutRepository::new());
 
     println!("Server starting at http://{}", address);
     
@@ -19,9 +20,11 @@ async fn main() -> std::io::Result<()> {
             .app_data(auth_repo.clone())
             .service(routes::auth::get_scope::<PgAuthRepository>())
             .service(
-                web::scope("/workouts")
+                web::scope("")
                     .wrap(SessionProtection::<PgAuthRepository>::new())
-                    .service(routes::workout::get_scope())
+                    .app_data(workout_repo.clone())
+                    .service(routes::workout::get_scope_with_resource::<PgWorkoutRepository>())
+                    .service(routes::workout::get_scope::<PgWorkoutRepository>())
             )
             .service(routes::general::get_scope())
     })

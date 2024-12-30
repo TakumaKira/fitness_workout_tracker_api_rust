@@ -33,7 +33,7 @@ pub trait AuthRepository {
     fn validate_csrf(&self, session_id: &str, csrf_token: &str) -> Result<(), AuthError>;
     fn verify_credentials(&self, email: String, password: String) -> Result<User, AuthError>;
     fn create_user(&self, email: String, password: String) -> Result<User, AuthError>;
-    fn validate_session(&self, session_token: &str) -> Result<(), AuthError>;
+    fn validate_session(&self, session_token: &str) -> Result<i64, AuthError>;
     fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError>;
     fn delete_user(&self, session_token: &str) -> Result<(), AuthError>;
 }
@@ -152,7 +152,7 @@ impl AuthRepository for PgAuthRepository {
         })
     }
 
-    fn validate_session(&self, session_token: &str) -> Result<(), AuthError> {
+    fn validate_session(&self, session_token: &str) -> Result<i64, AuthError> {
         use crate::schema::public::sessions;
         let mut conn = db::config::establish_connection();
         let now = chrono::Utc::now().naive_utc();
@@ -163,14 +163,14 @@ impl AuthRepository for PgAuthRepository {
             .execute(&mut conn)
             .map_err(AuthError::from)?;
 
-        // Validate session
-        sessions::table
+        // Validate session and return user_id
+        let session = sessions::table
             .filter(sessions::token.eq(session_token))
             .filter(sessions::expires_at.gt(now))
             .first::<Session>(&mut conn)
             .map_err(|_| AuthError::InvalidSession)?;
 
-        Ok(())
+        Ok(session.user_id)
     }
 
     fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError> {
