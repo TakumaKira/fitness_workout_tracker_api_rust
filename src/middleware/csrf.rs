@@ -4,41 +4,51 @@ use std::{
 use pin_project::pin_project;
 use actix_utils::future::{ok, Either, Ready};
 use actix_web::{
-    body::{EitherBody, MessageBody},
-    dev::{Service, ServiceRequest, ServiceResponse, Transform},
-    Error, HttpResponse,
+    body::{EitherBody, MessageBody}, dev::{Service, ServiceRequest, ServiceResponse, Transform}, web, Error, HttpResponse
 };
 use crate::repositories::auth_repository::AuthRepository;
 use futures::{ready, Future};
 
-pub struct CsrfProtection;
+pub struct CsrfProtection<T: AuthRepository>(PhantomData<T>);
 
-impl<S, B> Transform<S, ServiceRequest> for CsrfProtection
+impl<T: AuthRepository> CsrfProtection<T> {
+    pub fn new() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<S, B, T> Transform<S, ServiceRequest> for CsrfProtection<T>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: MessageBody + 'static,
+    T: AuthRepository + 'static,
 {
     type Response = ServiceResponse<EitherBody<B>>;
     type Error = Error;
-    type Transform = CsrfMiddleware<S>;
+    type Transform = CsrfMiddleware<S, T>;
     type InitError = ();
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(CsrfMiddleware { service })
+        ok(CsrfMiddleware { 
+            service,
+            _phantom: PhantomData,
+        })
     }
 }
 
-pub struct CsrfMiddleware<S> {
+pub struct CsrfMiddleware<S, T> {
     service: S,
+    _phantom: PhantomData<T>,
 }
 
-impl<S, B> Service<ServiceRequest> for CsrfMiddleware<S>
+impl<S, B, T> Service<ServiceRequest> for CsrfMiddleware<S, T>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: MessageBody + 'static,
+    T: AuthRepository + 'static,
 {
     type Response = ServiceResponse<EitherBody<B>>;
     type Error = Error;
@@ -54,15 +64,16 @@ where
             let csrf_token = req.headers().get("x-csrf-token").and_then(|h| h.to_str().ok()).map(String::from);
 
             if let (Some(session_id), Some(csrf_token)) = (session_id, csrf_token) {
-                let repo = AuthRepository::new();
-                if repo.validate_csrf(&session_id, &csrf_token).is_err() {
-                    let res = HttpResponse::Unauthorized()
-                        .json(serde_json::json!({
-                            "error": "Invalid CSRF token"
-                        }));
-                    return Either::right(ok(req.into_response(res)
-                        .map_into_boxed_body()
-                        .map_into_right_body()));
+                if let Some(repo) = req.app_data::<web::Data<T>>() {
+                    if repo.validate_csrf(&session_id, &csrf_token).is_err() {
+                        let res = HttpResponse::Unauthorized()
+                            .json(serde_json::json!({
+                                "error": "Invalid CSRF token"
+                            }));
+                        return Either::right(ok(req.into_response(res)
+                            .map_into_boxed_body()
+                            .map_into_right_body()));
+                    }
                 }
             } else {
                 let res = HttpResponse::Unauthorized()

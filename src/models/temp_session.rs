@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 
-#[derive(Queryable, Selectable)]
+#[derive(Queryable, Selectable, Clone)]
 #[diesel(table_name = crate::schema::public::temp_sessions)]
 pub struct TempSession {
     pub id: i64,
@@ -11,7 +11,7 @@ pub struct TempSession {
     pub expires_at: NaiveDateTime,
 }
 
-#[derive(Insertable)]
+#[derive(Insertable, Clone)]
 #[diesel(table_name = crate::schema::public::temp_sessions)]
 pub struct NewTempSession {
     pub session_id: String,

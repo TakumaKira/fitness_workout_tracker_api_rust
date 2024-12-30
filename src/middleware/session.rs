@@ -6,39 +6,51 @@ use actix_utils::future::{ok, Either, Ready};
 use actix_web::{
     body::{EitherBody, MessageBody},
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
-    Error, HttpResponse,
+    web, Error, HttpResponse,
 };
 use crate::repositories::auth_repository::AuthRepository;
 use futures::{ready, Future};
 
-pub struct SessionProtection;
+pub struct SessionProtection<T: AuthRepository>(PhantomData<T>);
 
-impl<S, B> Transform<S, ServiceRequest> for SessionProtection
+impl<T: AuthRepository> SessionProtection<T> {
+    pub fn new() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<S, B, T> Transform<S, ServiceRequest> for SessionProtection<T>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: MessageBody + 'static,
+    T: AuthRepository + 'static,
 {
     type Response = ServiceResponse<EitherBody<B>>;
     type Error = Error;
-    type Transform = SessionMiddleware<S>;
+    type Transform = SessionMiddleware<S, T>;
     type InitError = ();
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(SessionMiddleware { service })
+        ok(SessionMiddleware {
+            service,
+            _phantom: PhantomData,
+        })
     }
 }
 
-pub struct SessionMiddleware<S> {
+pub struct SessionMiddleware<S, T> {
     service: S,
+    _phantom: PhantomData<T>,
 }
 
-impl<S, B> Service<ServiceRequest> for SessionMiddleware<S>
+impl<S, B, T> Service<ServiceRequest> for SessionMiddleware<S, T>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: MessageBody + 'static,
+    T: AuthRepository + 'static,
 {
     type Response = ServiceResponse<EitherBody<B>>;
     type Error = Error;
@@ -50,20 +62,21 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         if let Some(session) = req.cookie("session_id") {
-            let repo = AuthRepository::new();
-            if repo.validate_session(&session.value().to_string()).is_err() {
-                let res = HttpResponse::Unauthorized()
-                    .json(serde_json::json!({
-                        "error": "Invalid session"
-                    }));
-                return Either::right(ok(req.into_response(res)
-                    .map_into_boxed_body()
-                    .map_into_right_body()));
+            if let Some(repo) = req.app_data::<web::Data<T>>() {
+                if repo.validate_session(session.value()).is_ok() {
+                    return Either::left(SessionFuture {
+                        fut: self.service.call(req),
+                        _phantom: PhantomData,
+                    });
+                }
             }
-            Either::left(SessionFuture {
-                fut: self.service.call(req),
-                _phantom: PhantomData,
-            })
+            let res = HttpResponse::Unauthorized()
+                .json(serde_json::json!({
+                    "error": "Invalid session"
+                }));
+            Either::right(ok(req.into_response(res)
+                .map_into_boxed_body()
+                .map_into_right_body()))
         } else {
             let res = HttpResponse::Unauthorized()
                 .json(serde_json::json!({
