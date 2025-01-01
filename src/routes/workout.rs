@@ -24,17 +24,17 @@ impl WorkoutResponse {
     }
 }
 
+pub fn get_scope_workout_id<T: WorkoutRepository + 'static>() -> Resource {
+    web::resource("/workouts/{workout_uuid}")
+        .route(web::get().to(get_workout::<T>))
+        .route(web::put().to(update_workout::<T>))
+        .route(web::delete().to(delete_workout::<T>))
+}
+
 pub fn get_scope<T: WorkoutRepository + 'static>() -> Scope {
     web::scope("/workouts")
         .route("", web::post().to(create_workout::<T>))
         .route("", web::get().to(list_workouts::<T>))
-}
-
-pub fn get_scope_with_resource<T: WorkoutRepository + 'static>() -> Resource {
-    web::resource("/workouts/{workout_id}")
-        .route(web::get().to(get_workout::<T>))
-        .route(web::put().to(update_workout::<T>))
-        .route(web::delete().to(delete_workout::<T>))
 }
 
 async fn create_workout<T: WorkoutRepository>(
@@ -113,3 +113,4 @@ async fn delete_workout<T: WorkoutRepository>(
         Err(_) => HttpResponse::InternalServerError().finish(),
     }
 }
+

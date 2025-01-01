@@ -125,33 +125,6 @@ impl AuthRepository for PgAuthRepository {
         }
     }
 
-    fn create_user(&self, email: String, password: String) -> Result<User, AuthError> {
-        use crate::schema::public::users;
-        let mut conn = db::config::establish_connection();
-
-        // Wrap everything in a transaction
-        conn.transaction(|conn| {
-            let salt = SaltString::generate(&mut OsRng);
-            let argon2 = Argon2::default();
-            let password_hash = argon2
-                .hash_password(password.as_bytes(), &salt)
-                .unwrap()
-                .to_string();
-
-            let new_user = User::new(email, password_hash);
-
-            diesel::insert_into(users::table)
-                .values(&new_user)
-                .execute(conn)
-                .map_err(AuthError::from)?;
-
-            users::table
-                .filter(users::uuid.eq(new_user.uuid))
-                .first(conn)
-                .map_err(AuthError::from)
-        })
-    }
-
     fn validate_session(&self, session_token: &str) -> Result<i64, AuthError> {
         use crate::schema::public::sessions;
         let mut conn = db::config::establish_connection();
@@ -182,6 +155,33 @@ impl AuthRepository for PgAuthRepository {
             .map_err(AuthError::from)?;
 
         Ok(())
+    }
+
+    fn create_user(&self, email: String, password: String) -> Result<User, AuthError> {
+        use crate::schema::public::users;
+        let mut conn = db::config::establish_connection();
+
+        // Wrap everything in a transaction
+        conn.transaction(|conn| {
+            let salt = SaltString::generate(&mut OsRng);
+            let argon2 = Argon2::default();
+            let password_hash = argon2
+                .hash_password(password.as_bytes(), &salt)
+                .unwrap()
+                .to_string();
+
+            let new_user = User::new(email, password_hash);
+
+            diesel::insert_into(users::table)
+                .values(&new_user)
+                .execute(conn)
+                .map_err(AuthError::from)?;
+
+            users::table
+                .filter(users::uuid.eq(new_user.uuid))
+                .first(conn)
+                .map_err(AuthError::from)
+        })
     }
 
     fn delete_user(&self, session_token: &str) -> Result<(), AuthError> {

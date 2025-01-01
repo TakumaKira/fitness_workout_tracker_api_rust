@@ -12,6 +12,54 @@ use crate::{
     },
 };
 
+pub struct MockAuthRepo {
+  sessions: Mutex<Vec<Session>>,
+}
+
+impl MockAuthRepo {
+  pub fn new() -> Self {
+      let mut sessions = vec![];
+      sessions.push(Session {
+          id: 1,
+          user_id: 1,
+          token: "user1-session".to_string(),
+          csrf_token: "user1-csrf".to_string(),
+          expires_at: chrono::Utc::now().naive_utc() + chrono::Duration::hours(1),
+          created_at: chrono::Utc::now().naive_utc(),
+      });
+      sessions.push(Session {
+          id: 2,
+          user_id: 2,
+          token: "user2-session".to_string(),
+          csrf_token: "user2-csrf".to_string(),
+          expires_at: chrono::Utc::now().naive_utc() + chrono::Duration::hours(1),
+          created_at: chrono::Utc::now().naive_utc(),
+      });
+      Self {
+          sessions: Mutex::new(sessions),
+      }
+  }
+}
+
+impl AuthRepository for MockAuthRepo {
+  fn validate_session(&self, session_token: &str) -> Result<i64, AuthError> {
+      let sessions = self.sessions.lock().unwrap();
+      let session = sessions.iter()
+          .find(|s| s.token == session_token)
+          .ok_or(AuthError::InvalidSession)?;
+      Ok(session.user_id)
+  }
+
+  // Implement other required methods with empty/mock implementations
+  fn create_temp_session(&self, _csrf_token: String) -> Result<crate::models::temp_session::TempSession, AuthError> { unimplemented!() }
+  fn create_session(&self, _user_id: i64, _session_id: String, _csrf_token: String) -> Result<Session, AuthError> { unimplemented!() }
+  fn validate_csrf(&self, _session_id: &str, _csrf_token: &str) -> Result<(), AuthError> { unimplemented!() }
+  fn verify_credentials(&self, _email: String, _password: String) -> Result<User, AuthError> { unimplemented!() }
+  fn invalidate_session(&self, _session_token: &str) -> Result<(), AuthError> { unimplemented!() }
+  fn create_user(&self, _email: String, _password: String) -> Result<User, AuthError> { unimplemented!() }
+  fn delete_user(&self, _session_token: &str) -> Result<(), AuthError> { unimplemented!() }
+}
+
 pub struct MockWorkoutRepo {
     workouts: Mutex<Vec<Workout>>,
 }
@@ -82,7 +130,7 @@ impl WorkoutRepository for MockWorkoutRepo {
     fn delete_workout(&self, user_id: i64, workout_uuid: Uuid) -> Result<(), WorkoutError> {
         let mut workouts = self.workouts.lock().unwrap();
         let initial_len = workouts.len();
-        workouts.retain(|w| !(w.uuid == workout_uuid && w.user_id == user_id));
+        workouts.retain(|w| !(w.user_id == user_id && w.uuid == workout_uuid));
         
         if workouts.len() < initial_len {
             Ok(())
@@ -92,52 +140,11 @@ impl WorkoutRepository for MockWorkoutRepo {
     }
 }
 
-pub struct MockAuthRepo {
-    sessions: Mutex<Vec<Session>>,
-}
-
-impl MockAuthRepo {
-    pub fn new() -> Self {
-        Self {
-            sessions: Mutex::new(vec![]),
-        }
-    }
-}
-
-impl AuthRepository for MockAuthRepo {
-    fn validate_session(&self, session_token: &str) -> Result<i64, AuthError> {
-        let sessions = self.sessions.lock().unwrap();
-        let session = sessions.iter()
-            .find(|s| s.token == session_token)
-            .ok_or(AuthError::InvalidSession)?;
-        Ok(session.user_id)
-    }
-
-    // Implement other required methods with empty/mock implementations
-    fn create_temp_session(&self, _csrf_token: String) -> Result<crate::models::temp_session::TempSession, AuthError> { unimplemented!() }
-    fn create_session(&self, _user_id: i64, _session_id: String, _csrf_token: String) -> Result<Session, AuthError> { unimplemented!() }
-    fn validate_csrf(&self, _session_id: &str, _csrf_token: &str) -> Result<(), AuthError> { unimplemented!() }
-    fn verify_credentials(&self, _email: String, _password: String) -> Result<User, AuthError> { unimplemented!() }
-    fn create_user(&self, _email: String, _password: String) -> Result<User, AuthError> { unimplemented!() }
-    fn invalidate_session(&self, _session_token: &str) -> Result<(), AuthError> { unimplemented!() }
-    fn delete_user(&self, _session_token: &str) -> Result<(), AuthError> { unimplemented!() }
-}
-
 #[actix_web::test]
 async fn test_workout_crud() {
     let auth_repo = web::Data::new(MockAuthRepo::new());
     let workout_repo = web::Data::new(MockWorkoutRepo::new());
     
-    // Setup test session
-    auth_repo.sessions.lock().unwrap().push(Session {
-        id: 1,
-        user_id: 1,
-        token: "test-session".to_string(),
-        csrf_token: "test-csrf".to_string(),
-        expires_at: chrono::Utc::now().naive_utc() + chrono::Duration::hours(1),
-        created_at: chrono::Utc::now().naive_utc(),
-    });
-
     let app = test::init_service(
         App::new()
             .app_data(auth_repo.clone())
@@ -145,7 +152,7 @@ async fn test_workout_crud() {
             .service(
                 web::scope("")
                     .wrap(SessionProtection::<MockAuthRepo>::new())
-                    .service(crate::routes::workout::get_scope_with_resource::<MockWorkoutRepo>())
+                    .service(crate::routes::workout::get_scope_workout_id::<MockWorkoutRepo>())
                     .service(crate::routes::workout::get_scope::<MockWorkoutRepo>())
             )
     ).await;
@@ -153,7 +160,7 @@ async fn test_workout_crud() {
     // Test Create
     let req = test::TestRequest::post()
         .uri("/workouts")
-        .cookie(Cookie::new("session_id", "test-session"))
+        .cookie(Cookie::new("session_id", "user1-session"))
         .set_json(json!({
             "name": "Test Workout",
             "description": "Test Description"
@@ -169,7 +176,7 @@ async fn test_workout_crud() {
     // Test List
     let req = test::TestRequest::get()
         .uri("/workouts")
-        .cookie(Cookie::new("session_id", "test-session"))
+        .cookie(Cookie::new("session_id", "user1-session"))
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert!(resp.status().is_success());
@@ -180,7 +187,7 @@ async fn test_workout_crud() {
     // Test Get
     let req = test::TestRequest::get()
         .uri(&format!("/workouts/{}", workout_uuid))
-        .cookie(Cookie::new("session_id", "test-session"))
+        .cookie(Cookie::new("session_id", "user1-session"))
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert!(resp.status().is_success());
@@ -188,7 +195,7 @@ async fn test_workout_crud() {
     // Test Update
     let req = test::TestRequest::put()
         .uri(&format!("/workouts/{}", workout_uuid))
-        .cookie(Cookie::new("session_id", "test-session"))
+        .cookie(Cookie::new("session_id", "user1-session"))
         .set_json(json!({
             "name": "Updated Workout",
             "description": "Updated Description"
@@ -202,7 +209,7 @@ async fn test_workout_crud() {
     // Test Delete
     let req = test::TestRequest::delete()
         .uri(&format!("/workouts/{}", workout_uuid))
-        .cookie(Cookie::new("session_id", "test-session"))
+        .cookie(Cookie::new("session_id", "user1-session"))
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 204);
@@ -210,7 +217,7 @@ async fn test_workout_crud() {
     // Verify deletion
     let req = test::TestRequest::get()
         .uri(&format!("/workouts/{}", workout_uuid))
-        .cookie(Cookie::new("session_id", "test-session"))
+        .cookie(Cookie::new("session_id", "user1-session"))
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 404);
@@ -220,26 +227,6 @@ async fn test_workout_crud() {
 async fn test_workout_isolation() {
     let auth_repo = web::Data::new(MockAuthRepo::new());
     let workout_repo = web::Data::new(MockWorkoutRepo::new());
-    
-    // Setup two test sessions for different users
-    auth_repo.sessions.lock().unwrap().extend(vec![
-        Session {
-            id: 1,
-            user_id: 1,
-            token: "user1-session".to_string(),
-            csrf_token: "test-csrf".to_string(),
-            expires_at: chrono::Utc::now().naive_utc() + chrono::Duration::hours(1),
-            created_at: chrono::Utc::now().naive_utc(),
-        },
-        Session {
-            id: 2,
-            user_id: 2,
-            token: "user2-session".to_string(),
-            csrf_token: "test-csrf".to_string(),
-            expires_at: chrono::Utc::now().naive_utc() + chrono::Duration::hours(1),
-            created_at: chrono::Utc::now().naive_utc(),
-        },
-    ]);
 
     let app = test::init_service(
         App::new()
@@ -249,7 +236,7 @@ async fn test_workout_isolation() {
                 web::scope("")
                     .wrap(SessionProtection::<MockAuthRepo>::new())
                     .service(crate::routes::workout::get_scope::<MockWorkoutRepo>())
-                    .service(crate::routes::workout::get_scope_with_resource::<MockWorkoutRepo>())
+                    .service(crate::routes::workout::get_scope_workout_id::<MockWorkoutRepo>())
             )
     ).await;
 

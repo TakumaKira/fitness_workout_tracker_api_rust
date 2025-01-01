@@ -38,6 +38,7 @@ where
     }
 }
 
+// TODO: We might be able to use actix_session instead
 pub struct SessionMiddleware<S, T> {
     service: S,
     _phantom: PhantomData<T>,

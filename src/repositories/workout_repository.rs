@@ -55,6 +55,7 @@ impl WorkoutRepository for PgWorkoutRepository {
         let mut conn = db::config::establish_connection();
 
         let workout = workouts::table
+            .filter(workouts::user_id.eq(user_id))
             .filter(workouts::uuid.eq(workout_uuid))
             .first::<Workout>(&mut conn)
             .map_err(WorkoutError::from)?;
@@ -81,12 +82,13 @@ impl WorkoutRepository for PgWorkoutRepository {
         let mut conn = db::config::establish_connection();
 
         let workout_exists = workouts::table
-            .filter(workouts::uuid.eq(workout_uuid))
             .filter(workouts::user_id.eq(user_id))
+            .filter(workouts::uuid.eq(workout_uuid))
             .first::<Workout>(&mut conn)
             .map_err(|_| WorkoutError::Unauthorized)?;
 
         diesel::update(workouts::table)
+            .filter(workouts::user_id.eq(user_id))
             .filter(workouts::uuid.eq(workout_uuid))
             .set((
                 workouts::name.eq(workout.name.unwrap_or(workout_exists.name)),
@@ -101,8 +103,8 @@ impl WorkoutRepository for PgWorkoutRepository {
         let mut conn = db::config::establish_connection();
 
         let result = diesel::delete(workouts::table)
+        .filter(workouts::user_id.eq(user_id))
             .filter(workouts::uuid.eq(workout_uuid))
-            .filter(workouts::user_id.eq(user_id))
             .execute(&mut conn)
             .map_err(WorkoutError::from)?;
 
