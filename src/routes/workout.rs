@@ -72,9 +72,7 @@ async fn get_workout<T: WorkoutRepository>(
     match repo.get_workout(user_id, *workout_uuid) {
         Ok(workout) => HttpResponse::Ok().json(WorkoutResponse::from(&workout)),
         Err(WorkoutError::NotFound) => HttpResponse::NotFound().finish(),
-        Err(WorkoutError::Unauthorized) => {
-            HttpResponse::Unauthorized().finish()
-        },
+        Err(WorkoutError::Unauthorized) => HttpResponse::Unauthorized().finish(),
         Err(_) => HttpResponse::InternalServerError().finish(),
     }
 }
@@ -90,9 +88,7 @@ async fn update_workout<T: WorkoutRepository>(
     match repo.update_workout(user_id, *workout_uuid, workout.0) {
         Ok(workout) => HttpResponse::Ok().json(WorkoutResponse::from(&workout)),
         Err(WorkoutError::NotFound) => HttpResponse::NotFound().finish(),
-        Err(WorkoutError::Unauthorized) => {
-            HttpResponse::Unauthorized().finish()
-        },
+        Err(WorkoutError::Unauthorized) => HttpResponse::Unauthorized().finish(),
         Err(_) => HttpResponse::InternalServerError().finish(),
     }
 }
@@ -107,9 +103,7 @@ async fn delete_workout<T: WorkoutRepository>(
     match repo.delete_workout(user_id, *workout_uuid) {
         Ok(_) => HttpResponse::NoContent().finish(),
         Err(WorkoutError::NotFound) => HttpResponse::NotFound().finish(),
-        Err(WorkoutError::Unauthorized) => {
-            HttpResponse::Unauthorized().finish()
-        },
+        Err(WorkoutError::Unauthorized) => HttpResponse::Unauthorized().finish(),
         Err(_) => HttpResponse::InternalServerError().finish(),
     }
 }

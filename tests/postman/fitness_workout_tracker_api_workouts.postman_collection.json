@@ -520,15 +520,5 @@
         }
       ]
     }
-  ],
-  "variable": [
-    {
-      "key": "csrf_token",
-      "value": ""
-    },
-    {
-      "key": "workout_uuid",
-      "value": ""
-    }
   ]
 } 

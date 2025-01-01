@@ -25,9 +25,8 @@ async fn add_exercise_to_workout<T: WorkoutExerciseRepository>(
 ) -> impl Responder {
   let user_id = *req.extensions().get::<i64>().unwrap();
   match repo.add_exercise_to_workout(user_id, *workout_uuid, exercise.exercise_uuid, exercise.order) {
-    Ok(()) => HttpResponse::Ok().finish(),
+    Ok(()) => HttpResponse::Created().finish(),
     Err(e) => match e {
-      WorkoutExerciseError::NotFound => HttpResponse::NotFound().finish(),
       WorkoutExerciseError::WorkoutNotFound => HttpResponse::NotFound().finish(),
       WorkoutExerciseError::ExerciseNotFound => HttpResponse::NotFound().finish(),
       WorkoutExerciseError::Unauthorized => HttpResponse::Forbidden().finish(),
@@ -45,9 +44,7 @@ async fn list_workout_exercises<T: WorkoutExerciseRepository>(
   match repo.list_workout_exercises(user_id, *workout_uuid) {
     Ok(exercises) => HttpResponse::Ok().json(exercises),
     Err(e) => match e {
-      WorkoutExerciseError::NotFound => HttpResponse::NotFound().finish(),
       WorkoutExerciseError::WorkoutNotFound => HttpResponse::NotFound().finish(),
-      WorkoutExerciseError::ExerciseNotFound => HttpResponse::NotFound().finish(),
       WorkoutExerciseError::Unauthorized => HttpResponse::Forbidden().finish(),
       _ => HttpResponse::InternalServerError().finish(),
     }
@@ -62,7 +59,7 @@ async fn remove_exercise_from_workout<T: WorkoutExerciseRepository>(
   let (workout_uuid, exercise_uuid) = path.into_inner();
   let user_id = *req.extensions().get::<i64>().unwrap();
   match repo.remove_exercise_from_workout(user_id, workout_uuid, exercise_uuid) {
-    Ok(()) => HttpResponse::Ok().finish(),
+    Ok(()) => HttpResponse::NoContent().finish(),
     Err(e) => match e {
       WorkoutExerciseError::NotFound => HttpResponse::NotFound().finish(),
       WorkoutExerciseError::WorkoutNotFound => HttpResponse::NotFound().finish(),

@@ -22,6 +22,7 @@ impl From<diesel::result::Error> for AuthError {
                 diesel::result::DatabaseErrorKind::UniqueViolation,
                 _,
             ) => AuthError::DuplicateEmail,
+            diesel::result::Error::NotFound => AuthError::NotFound,
             _ => AuthError::DatabaseError(err),
         }
     }

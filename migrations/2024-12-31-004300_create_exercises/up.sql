@@ -13,7 +13,7 @@ CREATE SEQUENCE exercises_id_seq NO CYCLE;
 CREATE OR REPLACE FUNCTION exercises_id_handler() 
 RETURNS trigger AS $$
 BEGIN
-    IF NEW.id = 0 THEN
+    IF NEW.id IS NULL OR NEW.id = 0 THEN
         NEW.id = nextval('exercises_id_seq');
     END IF;
     RETURN NEW;

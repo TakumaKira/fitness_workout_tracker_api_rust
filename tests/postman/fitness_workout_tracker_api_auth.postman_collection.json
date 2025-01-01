@@ -220,10 +220,6 @@
   ],
   "variable": [
     {
-      "key": "base_url",
-      "value": "http://localhost:8080"
-    },
-    {
       "key": "test_email",
       "value": "test@example.com"
     },

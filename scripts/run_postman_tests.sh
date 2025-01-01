@@ -24,11 +24,18 @@ npx newman run tests/postman/fitness_workout_tracker_api_workouts.postman_collec
 
 WORKOUT_TEST_RESULT=$?
 
+# Run exercise tests
+echo "Running exercise tests..."
+npx newman run tests/postman/fitness_workout_tracker_api_exercises.postman_collection.json \
+    -e tests/postman/local.postman_environment.json
+
+EXERCISE_TEST_RESULT=$?
+
 # Kill the server
 kill $SERVER_PID
 
 # Exit with error if any test failed
-if [ $AUTH_TEST_RESULT -ne 0 ] || [ $WORKOUT_TEST_RESULT -ne 0 ]; then
+if [ $AUTH_TEST_RESULT -ne 0 ] || [ $WORKOUT_TEST_RESULT -ne 0 ] || [ $EXERCISE_TEST_RESULT -ne 0 ]; then
     exit 1
 fi
 

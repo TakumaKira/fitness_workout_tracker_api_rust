@@ -73,6 +73,7 @@ async fn get_exercise<T: ExerciseRepository>(
     match repo.get_exercise(user_id, *exercise_uuid) {
         Ok(exercise) => HttpResponse::Ok().json(ExerciseResponse::from(&exercise)),
         Err(ExerciseError::NotFound) => HttpResponse::NotFound().finish(),
+        Err(ExerciseError::Unauthorized) => HttpResponse::Unauthorized().finish(),
         Err(_) => HttpResponse::InternalServerError().finish(),
     }
 }
@@ -88,6 +89,7 @@ async fn update_exercise<T: ExerciseRepository>(
     match repo.update_exercise(user_id, *exercise_uuid, exercise.0) {
         Ok(exercise) => HttpResponse::Ok().json(ExerciseResponse::from(&exercise)),
         Err(ExerciseError::NotFound) => HttpResponse::NotFound().finish(),
+        Err(ExerciseError::Unauthorized) => HttpResponse::Unauthorized().finish(),
         Err(_) => HttpResponse::InternalServerError().finish(),
     }
 }
@@ -102,6 +104,7 @@ async fn delete_exercise<T: ExerciseRepository>(
     match repo.delete_exercise(user_id, *exercise_uuid) {
         Ok(_) => HttpResponse::NoContent().finish(),
         Err(ExerciseError::NotFound) => HttpResponse::NotFound().finish(),
+        Err(ExerciseError::Unauthorized) => HttpResponse::Unauthorized().finish(),
         Err(_) => HttpResponse::InternalServerError().finish(),
     }
 } 
