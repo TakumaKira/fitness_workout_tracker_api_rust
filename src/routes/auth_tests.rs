@@ -65,6 +65,20 @@ impl AuthRepository for MockAuthRepo {
             .ok_or(AuthError::InvalidCredentials)
     }
 
+    fn validate_session(&self, session_token: &str) -> Result<i64, AuthError> {
+        let sessions = self.sessions.lock().unwrap();
+        let session = sessions.iter()
+            .find(|s| s.token == session_token)
+            .ok_or(AuthError::InvalidSession)?;
+        Ok(session.user_id)
+    }
+
+    fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError> {
+        let mut sessions = self.sessions.lock().unwrap();
+        sessions.retain(|s| s.token != session_token);
+        Ok(())
+    }
+
     fn create_user(&self, email: String, password: String) -> Result<User, AuthError> {
         let mut users = self.users.lock().unwrap();
         if users.iter().any(|u| u.email == email) {
@@ -81,20 +95,6 @@ impl AuthRepository for MockAuthRepo {
         };
         users.push(user.clone());
         Ok(user)
-    }
-
-    fn validate_session(&self, session_token: &str) -> Result<(), AuthError> {
-        let sessions = self.sessions.lock().unwrap();
-        sessions.iter()
-            .find(|s| s.token == session_token)
-            .ok_or(AuthError::InvalidSession)?;
-        Ok(())
-    }
-
-    fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError> {
-        let mut sessions = self.sessions.lock().unwrap();
-        sessions.retain(|s| s.token != session_token);
-        Ok(())
     }
 
     fn delete_user(&self, session_token: &str) -> Result<(), AuthError> {

@@ -3,7 +3,7 @@ CREATE SEQUENCE users_id_seq NO CYCLE;
 
 CREATE TABLE "users"(
 	"id" BIGINT NOT NULL PRIMARY KEY,
-	"uuid" UUID NOT NULL,
+	"uuid" UUID NOT NULL UNIQUE,
 	"email" VARCHAR NOT NULL UNIQUE,
 	"password_hash" VARCHAR NOT NULL,
 	"created_at" TIMESTAMP NOT NULL,

@@ -172,9 +172,11 @@ async fn delete_user<T: AuthRepository>(
                         .finish()
                 )
                 .finish(),
-            Err(AuthError::InvalidSession) => HttpResponse::Unauthorized().json(serde_json::json!({
-                "error": "Invalid session"
-            })),
+            Err(AuthError::InvalidSession) => {
+                HttpResponse::Unauthorized().json(serde_json::json!({
+                    "error": "Invalid session"
+                }))
+            },
             Err(_) => HttpResponse::InternalServerError().finish()
         }
     } else {

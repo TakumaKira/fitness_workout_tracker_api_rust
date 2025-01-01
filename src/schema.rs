@@ -2,6 +2,18 @@
 
 pub mod public {
     diesel::table! {
+        exercises (id) {
+            id -> Int8,
+            uuid -> Uuid,
+            user_id -> Int8,
+            name -> Varchar,
+            description -> Nullable<Varchar>,
+            created_at -> Timestamp,
+            updated_at -> Timestamp,
+        }
+    }
+
+    diesel::table! {
         sessions (id) {
             id -> Int8,
             user_id -> Int8,
@@ -33,11 +45,40 @@ pub mod public {
         }
     }
 
+    diesel::table! {
+        workout_exercises (workout_id, exercise_id) {
+            workout_id -> Int8,
+            exercise_id -> Int8,
+            user_id -> Int8,
+            order -> Int4,
+        }
+    }
+
+    diesel::table! {
+        workouts (id) {
+            id -> Int8,
+            uuid -> Uuid,
+            user_id -> Int8,
+            name -> Varchar,
+            description -> Nullable<Text>,
+            created_at -> Timestamp,
+            updated_at -> Timestamp,
+        }
+    }
+
+    diesel::joinable!(exercises -> users (user_id));
     diesel::joinable!(sessions -> users (user_id));
+    diesel::joinable!(workout_exercises -> exercises (exercise_id));
+    diesel::joinable!(workout_exercises -> users (user_id));
+    diesel::joinable!(workout_exercises -> workouts (workout_id));
+    diesel::joinable!(workouts -> users (user_id));
 
     diesel::allow_tables_to_appear_in_same_query!(
+        exercises,
         sessions,
         temp_sessions,
         users,
+        workout_exercises,
+        workouts,
     );
 }

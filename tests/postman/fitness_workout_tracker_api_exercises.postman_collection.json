@@ -1,0 +1,678 @@
+{
+  "info": {
+    "name": "Fitness Workout Tracker API - Exercises",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "Get CSRF Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "pm.collectionVariables.set(\"csrf_token\", jsonData.csrf_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/csrf-token"
+          }
+        },
+        {
+          "name": "Register User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"{{test_email}}\",\n    \"password\": \"{{test_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create Exercise",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.sendRequest({",
+              "    url: pm.variables.get(\"base_url\") + \"/auth/csrf-token\",",
+              "    method: \"GET\"",
+              "}, function (err, res) {",
+              "    pm.collectionVariables.set(\"csrf_token\", res.json().csrf_token);",
+              "    pm.sendRequest({",
+              "        url: pm.variables.get(\"base_url\") + \"/auth/login\",",
+              "        method: \"POST\",",
+              "        header: {",
+              "            \"Content-Type\": \"application/json\",",
+              "            \"x-csrf-token\": pm.collectionVariables.get(\"csrf_token\")",
+              "        },",
+              "        body: {",
+              "            mode: \"raw\",",
+              "            raw: JSON.stringify({",
+              "                email: pm.variables.get(\"test_email\"),",
+              "                password: pm.variables.get(\"test_password\")",
+              "            })",
+              "        }",
+              "    }, function (err, res) {",
+              "        pm.collectionVariables.set(\"session_id\", res.headers.get('Set-Cookie').split(';')[0].split('=')[1]);",
+              "    });",
+              "});"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test(\"Exercise is created with correct data\", function () {",
+              "    const exercise = pm.response.json();",
+              "    pm.expect(exercise.name).to.eql(\"Push-ups\");",
+              "    pm.expect(exercise.description).to.eql(\"Basic bodyweight exercise\");",
+              "    pm.globals.set(\"exercise_uuid\", exercise.uuid);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "x-csrf-token",
+            "value": "{{csrf_token}}"
+          },
+          {
+            "key": "Cookie",
+            "value": "session_id={{session_id}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"Push-ups\",\n    \"description\": \"Basic bodyweight exercise\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{base_url}}/exercises"
+      }
+    },
+    {
+      "name": "List Exercises",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.sendRequest({",
+              "    url: pm.variables.get(\"base_url\") + \"/auth/csrf-token\",",
+              "    method: \"GET\"",
+              "}, function (err, res) {",
+              "    pm.collectionVariables.set(\"csrf_token\", res.json().csrf_token);",
+              "    pm.sendRequest({",
+              "        url: pm.variables.get(\"base_url\") + \"/auth/login\",",
+              "        method: \"POST\",",
+              "        header: {",
+              "            \"Content-Type\": \"application/json\",",
+              "            \"x-csrf-token\": pm.collectionVariables.get(\"csrf_token\")",
+              "        },",
+              "        body: {",
+              "            mode: \"raw\",",
+              "            raw: JSON.stringify({",
+              "                email: pm.variables.get(\"test_email\"),",
+              "                password: pm.variables.get(\"test_password\")",
+              "            })",
+              "        }",
+              "    }, function (err, res) {",
+              "        pm.collectionVariables.set(\"session_id\", res.headers.get('Set-Cookie').split(';')[0].split('=')[1]);",
+              "    });",
+              "});"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response is an array\", function () {",
+              "    const exercises = pm.response.json();",
+              "    pm.expect(exercises).to.be.an('array');",
+              "    pm.expect(exercises.length).to.be.at.least(1);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "session_id={{session_id}}"
+          }
+        ],
+        "url": "{{base_url}}/exercises"
+      }
+    },
+    {
+      "name": "Get Exercise",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.sendRequest({",
+              "    url: pm.variables.get(\"base_url\") + \"/auth/csrf-token\",",
+              "    method: \"GET\"",
+              "}, function (err, res) {",
+              "    pm.collectionVariables.set(\"csrf_token\", res.json().csrf_token);",
+              "    pm.sendRequest({",
+              "        url: pm.variables.get(\"base_url\") + \"/auth/login\",",
+              "        method: \"POST\",",
+              "        header: {",
+              "            \"Content-Type\": \"application/json\",",
+              "            \"x-csrf-token\": pm.collectionVariables.get(\"csrf_token\")",
+              "        },",
+              "        body: {",
+              "            mode: \"raw\",",
+              "            raw: JSON.stringify({",
+              "                email: pm.variables.get(\"test_email\"),",
+              "                password: pm.variables.get(\"test_password\")",
+              "            })",
+              "        }",
+              "    }, function (err, res) {",
+              "        pm.collectionVariables.set(\"session_id\", res.headers.get('Set-Cookie').split(';')[0].split('=')[1]);",
+              "    });",
+              "});"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Exercise data is correct\", function () {",
+              "    const exercise = pm.response.json();",
+              "    pm.expect(exercise.uuid).to.eql(pm.globals.get(\"exercise_uuid\"));",
+              "    pm.expect(exercise.name).to.eql(\"Push-ups\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "session_id={{session_id}}"
+          }
+        ],
+        "url": "{{base_url}}/exercises/{{exercise_uuid}}"
+      }
+    },
+    {
+      "name": "Update Exercise",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.sendRequest({",
+              "    url: pm.variables.get(\"base_url\") + \"/auth/csrf-token\",",
+              "    method: \"GET\"",
+              "}, function (err, res) {",
+              "    pm.collectionVariables.set(\"csrf_token\", res.json().csrf_token);",
+              "    pm.sendRequest({",
+              "        url: pm.variables.get(\"base_url\") + \"/auth/login\",",
+              "        method: \"POST\",",
+              "        header: {",
+              "            \"Content-Type\": \"application/json\",",
+              "            \"x-csrf-token\": pm.collectionVariables.get(\"csrf_token\")",
+              "        },",
+              "        body: {",
+              "            mode: \"raw\",",
+              "            raw: JSON.stringify({",
+              "                email: pm.variables.get(\"test_email\"),",
+              "                password: pm.variables.get(\"test_password\")",
+              "            })",
+              "        }",
+              "    }, function (err, res) {",
+              "        pm.collectionVariables.set(\"session_id\", res.headers.get('Set-Cookie').split(';')[0].split('=')[1]);",
+              "    });",
+              "});"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Exercise is updated with correct data\", function () {",
+              "    const exercise = pm.response.json();",
+              "    pm.expect(exercise.name).to.eql(\"Diamond Push-ups\");",
+              "    pm.expect(exercise.description).to.eql(\"Advanced variation\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "session_id={{session_id}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"Diamond Push-ups\",\n    \"description\": \"Advanced variation\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{base_url}}/exercises/{{exercise_uuid}}"
+      }
+    },
+    {
+      "name": "Add Exercise to Workout",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.sendRequest({",
+              "    url: pm.variables.get(\"base_url\") + \"/auth/csrf-token\",",
+              "    method: \"GET\"",
+              "}, function (err, res) {",
+              "    pm.collectionVariables.set(\"csrf_token\", res.json().csrf_token);",
+              "    pm.sendRequest({",
+              "        url: pm.variables.get(\"base_url\") + \"/auth/login\",",
+              "        method: \"POST\",",
+              "        header: {",
+              "            \"Content-Type\": \"application/json\",",
+              "            \"x-csrf-token\": pm.collectionVariables.get(\"csrf_token\")",
+              "        },",
+              "        body: {",
+              "            mode: \"raw\",",
+              "            raw: JSON.stringify({",
+              "                email: pm.variables.get(\"test_email\"),",
+              "                password: pm.variables.get(\"test_password\")",
+              "            })",
+              "        }",
+              "    }, function (err, res) {",
+              "        pm.collectionVariables.set(\"session_id\", res.headers.get('Set-Cookie').split(';')[0].split('=')[1]);",
+              "        pm.sendRequest({",
+              "            url: pm.variables.get(\"base_url\") + \"/workouts\",",
+              "            method: \"POST\",",
+              "            header: {",
+              "            \"Content-Type\": \"application/json\",",
+              "            \"x-csrf-token\": pm.collectionVariables.get(\"csrf_token\"),",
+              "            \"Cookie\": \"session_id=\" + pm.collectionVariables.get(\"session_id\")",
+              "            },",
+              "            body: {",
+              "                mode: \"raw\",",
+              "                raw: JSON.stringify({",
+              "                    \"name\": \"Test Workout\",",
+              "                    \"description\": \"Workout for testing exercises\"",
+              "                })",
+              "            }",
+              "        }, function (err, res) {",
+              "            const workout = res.json();",
+              "            pm.globals.set(\"workout_uuid\", workout.uuid);",
+              "        });",
+              "    });",
+              "});"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "x-csrf-token",
+            "value": "{{csrf_token}}"
+          },
+          {
+            "key": "Cookie",
+            "value": "session_id={{session_id}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"exercise_uuid\": \"{{exercise_uuid}}\",\n    \"order\": 1\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{base_url}}/workouts/{{workout_uuid}}/exercises"
+      }
+    },
+    {
+      "name": "List Workout Exercises",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.sendRequest({",
+              "    url: pm.variables.get(\"base_url\") + \"/auth/csrf-token\",",
+              "    method: \"GET\"",
+              "}, function (err, res) {",
+              "    pm.collectionVariables.set(\"csrf_token\", res.json().csrf_token);",
+              "    pm.sendRequest({",
+              "        url: pm.variables.get(\"base_url\") + \"/auth/login\",",
+              "        method: \"POST\",",
+              "        header: {",
+              "            \"Content-Type\": \"application/json\",",
+              "            \"x-csrf-token\": pm.collectionVariables.get(\"csrf_token\")",
+              "        },",
+              "        body: {",
+              "            mode: \"raw\",",
+              "            raw: JSON.stringify({",
+              "                email: pm.variables.get(\"test_email\"),",
+              "                password: pm.variables.get(\"test_password\")",
+              "            })",
+              "        }",
+              "    }, function (err, res) {",
+              "        pm.collectionVariables.set(\"session_id\", res.headers.get('Set-Cookie').split(';')[0].split('=')[1]);",
+              "    });",
+              "});"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Exercise is in workout\", function () {",
+              "    const exercises = pm.response.json();",
+              "    pm.expect(exercises).to.be.an('array');",
+              "    pm.expect(exercises.length).to.be.at.least(1);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "session_id={{session_id}}"
+          }
+        ],
+        "url": "{{base_url}}/workouts/{{workout_uuid}}/exercises"
+      }
+    },
+    {
+      "name": "Remove Exercise from Workout",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.sendRequest({",
+              "    url: pm.variables.get(\"base_url\") + \"/auth/csrf-token\",",
+              "    method: \"GET\"",
+              "}, function (err, res) {",
+              "    pm.collectionVariables.set(\"csrf_token\", res.json().csrf_token);",
+              "    pm.sendRequest({",
+              "        url: pm.variables.get(\"base_url\") + \"/auth/login\",",
+              "        method: \"POST\",",
+              "        header: {",
+              "            \"Content-Type\": \"application/json\",",
+              "            \"x-csrf-token\": pm.collectionVariables.get(\"csrf_token\")",
+              "        },",
+              "        body: {",
+              "            mode: \"raw\",",
+              "            raw: JSON.stringify({",
+              "                email: pm.variables.get(\"test_email\"),",
+              "                password: pm.variables.get(\"test_password\")",
+              "            })",
+              "        }",
+              "    }, function (err, res) {",
+              "        pm.collectionVariables.set(\"session_id\", res.headers.get('Set-Cookie').split(';')[0].split('=')[1]);",
+              "    });",
+              "});"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 204\", function () {",
+              "    pm.response.to.have.status(204);",
+              "});",
+              "",
+              "// Verify exercise was removed by checking the workout's exercises",
+              "pm.sendRequest({",
+              "    url: pm.variables.get(\"base_url\") + \"/workouts/\" + pm.globals.get(\"workout_uuid\") + \"/exercises\",",
+              "    method: \"GET\",",
+              "    header: {",
+              "        \"Cookie\": \"session_id=\" + pm.collectionVariables.get(\"session_id\")",
+              "    }",
+              "}, function (err, res) {",
+              "    pm.test(\"Exercise is no longer in workout\", function () {",
+              "        const exercises = res.json();",
+              "        const exercise = exercises.find(e => e.uuid === pm.globals.get(\"exercise_uuid\"));",
+              "        pm.expect(exercise).to.be.undefined;",
+              "    });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "session_id={{session_id}}"
+          }
+        ],
+        "url": "{{base_url}}/workouts/{{workout_uuid}}/exercises/{{exercise_uuid}}"
+      }
+    },
+    {
+      "name": "Delete Exercise",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.sendRequest({",
+              "    url: pm.variables.get(\"base_url\") + \"/auth/csrf-token\",",
+              "    method: \"GET\"",
+              "}, function (err, res) {",
+              "    pm.collectionVariables.set(\"csrf_token\", res.json().csrf_token);",
+              "    pm.sendRequest({",
+              "        url: pm.variables.get(\"base_url\") + \"/auth/login\",",
+              "        method: \"POST\",",
+              "        header: {",
+              "            \"Content-Type\": \"application/json\",",
+              "            \"x-csrf-token\": pm.collectionVariables.get(\"csrf_token\")",
+              "        },",
+              "        body: {",
+              "            mode: \"raw\",",
+              "            raw: JSON.stringify({",
+              "                email: pm.variables.get(\"test_email\"),",
+              "                password: pm.variables.get(\"test_password\")",
+              "            })",
+              "        }",
+              "    }, function (err, res) {",
+              "        pm.collectionVariables.set(\"session_id\", res.headers.get('Set-Cookie').split(';')[0].split('=')[1]);",
+              "    });",
+              "});"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 204\", function () {",
+              "    pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "session_id={{session_id}}"
+          }
+        ],
+        "url": "{{base_url}}/exercises/{{exercise_uuid}}"
+      }
+    },
+    {
+      "name": "Delete User",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.sendRequest({",
+              "    url: pm.variables.get(\"base_url\") + \"/auth/csrf-token\",",
+              "    method: \"GET\"",
+              "}, function (err, res) {",
+              "    pm.collectionVariables.set(\"csrf_token\", res.json().csrf_token);",
+              "    pm.sendRequest({",
+              "        url: pm.variables.get(\"base_url\") + \"/auth/login\",",
+              "        method: \"POST\",",
+              "        header: {",
+              "            \"Content-Type\": \"application/json\",",
+              "            \"x-csrf-token\": pm.collectionVariables.get(\"csrf_token\")",
+              "        },",
+              "        body: {",
+              "            mode: \"raw\",",
+              "            raw: JSON.stringify({",
+              "                email: pm.variables.get(\"test_email\"),",
+              "                password: pm.variables.get(\"test_password\")",
+              "            })",
+              "        }",
+              "    });",
+              "});"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 204\", function () {",
+              "    pm.response.to.have.status(204);",
+              "});",
+              "",
+              "// Verify can't login with deleted account",
+              "pm.sendRequest({",
+              "    url: pm.variables.get(\"base_url\") + \"/auth/login\",",
+              "    method: \"POST\",",
+              "    header: {",
+              "        \"Content-Type\": \"application/json\",",
+              "        \"x-csrf-token\": pm.collectionVariables.get(\"csrf_token\")",
+              "    },",
+              "    body: {",
+              "        mode: \"raw\",",
+              "        raw: JSON.stringify({",
+              "            email: pm.variables.get(\"test_email\"),",
+              "            password: pm.variables.get(\"test_password\")",
+              "        })",
+              "    }",
+              "}, function (err, res) {",
+              "    pm.test(\"Cannot login with deleted account\", function () {",
+              "        pm.expect(res.code).to.equal(401);",
+              "    });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{base_url}}/auth/user"
+      }
+    }
+  ]
+} 

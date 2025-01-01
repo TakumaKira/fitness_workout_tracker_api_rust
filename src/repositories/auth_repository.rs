@@ -22,6 +22,7 @@ impl From<diesel::result::Error> for AuthError {
                 diesel::result::DatabaseErrorKind::UniqueViolation,
                 _,
             ) => AuthError::DuplicateEmail,
+            diesel::result::Error::NotFound => AuthError::NotFound,
             _ => AuthError::DatabaseError(err),
         }
     }
@@ -33,7 +34,7 @@ pub trait AuthRepository {
     fn validate_csrf(&self, session_id: &str, csrf_token: &str) -> Result<(), AuthError>;
     fn verify_credentials(&self, email: String, password: String) -> Result<User, AuthError>;
     fn create_user(&self, email: String, password: String) -> Result<User, AuthError>;
-    fn validate_session(&self, session_token: &str) -> Result<(), AuthError>;
+    fn validate_session(&self, session_token: &str) -> Result<i64, AuthError>;
     fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError>;
     fn delete_user(&self, session_token: &str) -> Result<(), AuthError>;
 }
@@ -125,6 +126,38 @@ impl AuthRepository for PgAuthRepository {
         }
     }
 
+    fn validate_session(&self, session_token: &str) -> Result<i64, AuthError> {
+        use crate::schema::public::sessions;
+        let mut conn = db::config::establish_connection();
+        let now = chrono::Utc::now().naive_utc();
+
+        // Delete expired sessions first
+        diesel::delete(sessions::table)
+            .filter(sessions::expires_at.lt(now))
+            .execute(&mut conn)
+            .map_err(AuthError::from)?;
+
+        // Validate session and return user_id
+        let session = sessions::table
+            .filter(sessions::token.eq(session_token))
+            .filter(sessions::expires_at.gt(now))
+            .first::<Session>(&mut conn)
+            .map_err(|_| AuthError::InvalidSession)?;
+
+        Ok(session.user_id)
+    }
+
+    fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError> {
+        use crate::schema::public::sessions;
+        let mut conn = db::config::establish_connection();
+        diesel::delete(sessions::table)
+            .filter(sessions::token.eq(session_token))
+            .execute(&mut conn)
+            .map_err(AuthError::from)?;
+
+        Ok(())
+    }
+
     fn create_user(&self, email: String, password: String) -> Result<User, AuthError> {
         use crate::schema::public::users;
         let mut conn = db::config::establish_connection();
@@ -150,38 +183,6 @@ impl AuthRepository for PgAuthRepository {
                 .first(conn)
                 .map_err(AuthError::from)
         })
-    }
-
-    fn validate_session(&self, session_token: &str) -> Result<(), AuthError> {
-        use crate::schema::public::sessions;
-        let mut conn = db::config::establish_connection();
-        let now = chrono::Utc::now().naive_utc();
-
-        // Delete expired sessions first
-        diesel::delete(sessions::table)
-            .filter(sessions::expires_at.lt(now))
-            .execute(&mut conn)
-            .map_err(AuthError::from)?;
-
-        // Validate session
-        sessions::table
-            .filter(sessions::token.eq(session_token))
-            .filter(sessions::expires_at.gt(now))
-            .first::<Session>(&mut conn)
-            .map_err(|_| AuthError::InvalidSession)?;
-
-        Ok(())
-    }
-
-    fn invalidate_session(&self, session_token: &str) -> Result<(), AuthError> {
-        use crate::schema::public::sessions;
-        let mut conn = db::config::establish_connection();
-        diesel::delete(sessions::table)
-            .filter(sessions::token.eq(session_token))
-            .execute(&mut conn)
-            .map_err(AuthError::from)?;
-
-        Ok(())
     }
 
     fn delete_user(&self, session_token: &str) -> Result<(), AuthError> {
