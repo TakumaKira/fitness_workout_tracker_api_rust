@@ -9,11 +9,26 @@ use actix_web::{
 use crate::repositories::auth_repository::AuthRepository;
 use futures::{ready, Future};
 
-pub struct SessionProtection<T: AuthRepository>(PhantomData<T>);
+pub struct SessionProtection<T: AuthRepository> {
+    ignored_paths: Vec<String>,
+    _phantom: PhantomData<T>,
+}
 
 impl<T: AuthRepository> SessionProtection<T> {
     pub fn new() -> Self {
-        Self(PhantomData)
+        Self {
+            ignored_paths: Vec::new(),
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn ignore<I>(mut self, paths: I) -> Self 
+    where
+        I: IntoIterator,
+        I::Item: Into<String>,
+    {
+        self.ignored_paths = paths.into_iter().map(Into::into).collect();
+        self
     }
 }
 
@@ -33,6 +48,7 @@ where
     fn new_transform(&self, service: S) -> Self::Future {
         ok(SessionMiddleware {
             service,
+            ignored_paths: self.ignored_paths.clone(),
             _phantom: PhantomData,
         })
     }
@@ -41,6 +57,7 @@ where
 // TODO: We might be able to use actix_session instead
 pub struct SessionMiddleware<S, T> {
     service: S,
+    ignored_paths: Vec<String>,
     _phantom: PhantomData<T>,
 }
 
@@ -60,6 +77,14 @@ where
     }
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
+        // Skip session check for ignored paths
+        if self.ignored_paths.iter().any(|path| req.path() == path) {
+            return Either::left(SessionFuture {
+                fut: self.service.call(req),
+                _phantom: PhantomData,
+            });
+        }
+
         if let Some(session) = req.cookie("session_id") {
             if let Some(repo) = req.app_data::<web::Data<T>>() {
                 if let Ok(user_id) = repo.validate_session(session.value()) {
