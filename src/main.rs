@@ -23,7 +23,10 @@ async fn main() -> std::io::Result<()> {
             .service(routes::auth::get_scope::<PgAuthRepository>())
             .service(
                 web::scope("")
-                    .wrap(SessionProtection::<PgAuthRepository>::new())
+                    .wrap(
+                        SessionProtection::<PgAuthRepository>::new()
+                            .ignore(["/health", "/echo", "/"])
+                    )
                     .app_data(workout_repo.clone())
                     .app_data(exercise_repo.clone())
                     .app_data(workout_exercise_repo.clone())
@@ -33,8 +36,9 @@ async fn main() -> std::io::Result<()> {
                     .service(routes::exercise::get_scope::<PgExerciseRepository>())
                     .service(routes::workout::get_scope_workout_id::<PgWorkoutRepository>())
                     .service(routes::workout::get_scope::<PgWorkoutRepository>())
+                    .wrap(actix_web::middleware::DefaultHeaders::new())
+                    .service(routes::general::get_scope())
             )
-            .service(routes::general::get_scope())
     })
     .bind(&address)?
     .run()

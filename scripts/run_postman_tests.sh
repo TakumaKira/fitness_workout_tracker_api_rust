@@ -10,6 +10,13 @@ SERVER_PID=$!
 # Wait for server to start
 sleep 5
 
+# Run general tests
+echo "Running general tests..."
+npx newman run tests/postman/fitness_workout_tracker_api_general.postman_collection.json \
+    -e tests/postman/local.postman_environment.json
+
+GENERAL_TEST_RESULT=$?
+
 # Run auth tests
 echo "Running auth tests..."
 npx newman run tests/postman/fitness_workout_tracker_api_auth.postman_collection.json \
