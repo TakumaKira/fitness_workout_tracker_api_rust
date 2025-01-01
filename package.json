@@ -1,0 +1,8 @@
+{
+  "name": "fitness-workout-tracker-api-tests",
+  "version": "1.0.0",
+  "description": "E2E tests for Fitness Workout Tracker API",
+  "devDependencies": {
+    "newman": "^6.2.1"
+  }
+} 
