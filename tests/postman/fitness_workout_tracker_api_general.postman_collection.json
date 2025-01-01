@@ -1,0 +1,115 @@
+{
+  "info": {
+    "name": "Fitness Workout Tracker API - General",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has correct message\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.status).to.eql(\"healthy\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/health"
+      }
+    },
+    {
+      "name": "Echo",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.sendRequest({",
+              "    url: pm.variables.get(\"base_url\") + \"/auth/csrf-token\",",
+              "    method: \"GET\"",
+              "}, function (err, res) {",
+              "    pm.collectionVariables.set(\"csrf_token\", res.json().csrf_token);",
+              "    pm.collectionVariables.set(\"session_id\", res.headers.get('Set-Cookie').split(';')[0].split('=')[1]);",
+              "});"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response echoes message\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.content).to.eql(\"Hello, World!\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "x-csrf-token",
+            "value": "{{csrf_token}}"
+          },
+          {
+            "key": "Cookie",
+            "value": "session_id={{session_id}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"content\": \"Hello, World!\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{base_url}}/echo"
+      }
+    },
+    {
+      "name": "Root",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has correct message\", function () {",
+              "    var message = pm.response.text();",
+              "    pm.expect(message).to.eql(\"It's running\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/"
+      }
+    }
+  ]
+} 
